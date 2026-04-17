@@ -37,10 +37,11 @@ VALID_CATEGORIES = [CATEGORY_NEW_SF, CATEGORY_NEW_MF, CATEGORY_DEMO]
 
 DATA_CACHE: Dict[str, Any] = {
     "loaded_at": 0.0,
-    "permits": [],
+    "rows": [],
     "neighborhoods": [],
     "errors": [],
     "stats": {},
+    "summary_all": {},
 }
 
 
@@ -176,6 +177,49 @@ def compute_bbox(rings: List[List[Tuple[float, float]]]) -> Optional[Tuple[float
     return (min(xs), min(ys), max(xs), max(ys))
 
 
+def make_row(jurisdiction: str, category: str, permit_id: str, address: str, permit_type: str, description: str,
+             status: str, neighborhood: str, intake_dt: Optional[datetime], issue_dt: Optional[datetime],
+             latitude: Optional[float], longitude: Optional[float]) -> Dict[str, Any]:
+    return {
+        "jurisdiction": jurisdiction,
+        "category": category,
+        "permit_id": normalize_whitespace(permit_id),
+        "address": normalize_whitespace(address),
+        "permit_type": normalize_whitespace(permit_type),
+        "description": normalize_whitespace(description),
+        "status": normalize_whitespace(status),
+        "neighborhood": normalize_whitespace(neighborhood) or "Unknown",
+        "intake_dt": intake_dt,
+        "issue_dt": issue_dt,
+        "latitude": latitude,
+        "longitude": longitude,
+    }
+
+
+def row_sort_dt(row: Dict[str, Any], date_mode: str = "intake") -> datetime:
+    dt = row.get("issue_dt") if date_mode == "issued" else row.get("intake_dt")
+    if not dt:
+        dt = row.get("intake_dt") or row.get("issue_dt") or datetime(1900, 1, 1)
+    return dt
+
+
+def slim_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "jurisdiction": row.get("jurisdiction"),
+        "category": row.get("category"),
+        "permit_id": row.get("permit_id"),
+        "address": row.get("address"),
+        "permit_type": row.get("permit_type"),
+        "description": row.get("description"),
+        "status": row.get("status"),
+        "neighborhood": row.get("neighborhood"),
+        "intake_dt": row.get("intake_dt"),
+        "issue_dt": row.get("issue_dt"),
+        "latitude": row.get("latitude"),
+        "longitude": row.get("longitude"),
+    }
+
+
 def classify_permit(text: str) -> Optional[str]:
     if not text:
         return None
@@ -263,7 +307,7 @@ def fetch_seattle_neighborhoods() -> List[Dict[str, Any]]:
 def fetch_seattle_permits(neighborhoods: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
     rows: List[Dict[str, Any]] = []
     offset = 0
-    page_size = 5000
+    page_size = 2500
     pages = 0
     while True:
         pages += 1
@@ -272,7 +316,7 @@ def fetch_seattle_permits(neighborhoods: List[Dict[str, Any]]) -> Tuple[List[Dic
             params={
                 "$limit": str(page_size),
                 "$offset": str(offset),
-                "$order": "applieddate ASC",
+                "$order": "applieddate DESC",
                 "$select": ",".join([
                     "permitnum", "permitclass", "permittype", "applieddate", "issueddate",
                     "statuscurrent", "originaladdress1", "description", "latitude", "longitude"
@@ -290,15 +334,13 @@ def fetch_seattle_permits(neighborhoods: List[Dict[str, Any]]) -> Tuple[List[Dic
             year = intake.year if intake else None
             if year is None or year < MIN_YEAR or year > MAX_YEAR:
                 continue
-            text = summarize_text(
-                src.get("permitclass"), src.get("permittype"), src.get("description")
-            )
-            category = classify_permit(text)
+            text_blob = summarize_text(src.get("permitclass"), src.get("permittype"), src.get("description"))
+            category = classify_permit(text_blob)
             if not category:
                 continue
             lon, lat = extract_lon_lat(src)
             neighborhood = None
-            if lon is not None and lat is not None:
+            if lon is not None and lat is not None and neighborhoods:
                 for hood in neighborhoods:
                     xmin, ymin, xmax, ymax = hood["bbox"]
                     if lon < xmin or lon > xmax or lat < ymin or lat > ymax:
@@ -306,55 +348,47 @@ def fetch_seattle_permits(neighborhoods: List[Dict[str, Any]]) -> Tuple[List[Dic
                     if polygon_contains((lon, lat), hood["rings"]):
                         neighborhood = hood["name"]
                         break
-            rows.append({
-                "jurisdiction": "Seattle",
-                "category": category,
-                "permit_id": normalize_whitespace(src.get("permitnum")),
-                "address": normalize_whitespace(src.get("originaladdress1")),
-                "permit_type": normalize_whitespace(src.get("permittype") or src.get("permitclass")),
-                "description": normalize_whitespace(src.get("description")),
-                "status": normalize_whitespace(src.get("statuscurrent")),
-                "neighborhood": neighborhood or "Unknown",
-                "intake_dt": intake,
-                "issue_dt": parse_dt(src.get("issueddate")),
-                "latitude": lat,
-                "longitude": lon,
-            })
+            rows.append(make_row(
+                "Seattle", category, src.get("permitnum"), src.get("originaladdress1"),
+                src.get("permittype") or src.get("permitclass"), src.get("description"),
+                src.get("statuscurrent"), neighborhood or "Unknown", intake, parse_dt(src.get("issueddate")), lat, lon
+            ))
         if len(batch) < page_size:
             break
         offset += page_size
-        if pages >= 20:  # safety valve
+        if pages >= 12:
             break
     return rows, {"pages": pages}
 
-
-def choose_bellevue_csv_text() -> str:
+def iter_bellevue_csv_rows() -> Iterable[Dict[str, Any]]:
     last_err = None
     for url in BELLEVUE_PERMITS_CSV_CANDIDATES:
         try:
-            r = SESSION.get(url, timeout=REQUEST_TIMEOUT)
-            r.raise_for_status()
-            text = r.text
-            if "PERMIT" in text.upper() and "," in text:
-                return text
+            with SESSION.get(url, timeout=REQUEST_TIMEOUT, stream=True) as r:
+                r.raise_for_status()
+                iterator = (line.decode("utf-8", errors="replace") for line in r.iter_lines() if line)
+                reader = csv.DictReader(iterator)
+                first = next(reader, None)
+                if first is None:
+                    continue
+                if not any("permit" in str(k).lower() for k in first.keys()):
+                    continue
+                yield first
+                for row in reader:
+                    yield row
+                return
         except Exception as exc:
             last_err = exc
     raise RuntimeError(f"Bellevue permits download failed: {last_err}")
 
 
 def fetch_bellevue_permits() -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
-    text = choose_bellevue_csv_text()
-    reader = csv.DictReader(io.StringIO(text))
     rows: List[Dict[str, Any]] = []
     total_seen = 0
-    for src in reader:
+    for src in iter_bellevue_csv_rows():
         total_seen += 1
-        intake = parse_dt(
-            src.get("APPLIED DATE") or src.get("Applied Date") or src.get("DATE APPLIED") or extract_candidate(src, ["applied"])
-        )
-        issue = parse_dt(
-            src.get("ISSUED DATE") or src.get("Issued Date") or src.get("DATE ISSUED") or extract_candidate(src, ["issued"])
-        )
+        intake = parse_dt(src.get("APPLIED DATE") or src.get("Applied Date") or src.get("DATE APPLIED") or extract_candidate(src, ["applied"]))
+        issue = parse_dt(src.get("ISSUED DATE") or src.get("Issued Date") or src.get("DATE ISSUED") or extract_candidate(src, ["issued"]))
         date_basis = intake or issue
         year = date_basis.year if date_basis else None
         if year is None or year < MIN_YEAR or year > MAX_YEAR:
@@ -368,39 +402,34 @@ def fetch_bellevue_permits() -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
             continue
         lon, lat = extract_lon_lat(src)
         neighborhood = normalize_whitespace(
-            src.get("NEIGHBORHOOD AREA")
-            or src.get("Neighborhood Area")
-            or src.get("NEIGHBORHOOD")
-            or extract_candidate(src, ["neighborhood area", "neighborhood"])
+            src.get("NEIGHBORHOOD AREA") or src.get("Neighborhood Area") or src.get("NEIGHBORHOOD") or extract_candidate(src, ["neighborhood area", "neighborhood"])
         ) or "Unknown"
-        rows.append({
-            "jurisdiction": "Bellevue",
-            "category": category,
-            "permit_id": normalize_whitespace(src.get("PERMIT NUMBER") or src.get("Permit Number") or extract_candidate(src, ["permit number"])),
-            "address": normalize_whitespace(src.get("SITE ADDRESS") or src.get("ADDRESS") or extract_candidate(src, ["site address", "address"])),
-            "permit_type": normalize_whitespace(permit_type),
-            "description": normalize_whitespace(subtype),
-            "status": normalize_whitespace(status),
-            "neighborhood": neighborhood,
-            "intake_dt": intake,
-            "issue_dt": issue,
-            "latitude": lat,
-            "longitude": lon,
-        })
+        rows.append(make_row(
+            "Bellevue",
+            category,
+            src.get("PERMIT NUMBER") or src.get("Permit Number") or extract_candidate(src, ["permit number"]),
+            src.get("SITE ADDRESS") or src.get("ADDRESS") or extract_candidate(src, ["site address", "address"]),
+            permit_type,
+            subtype,
+            status,
+            neighborhood,
+            intake,
+            issue,
+            lat,
+            lon,
+        ))
     if not rows:
         raise RuntimeError("Bellevue permits parsed successfully but yielded zero target permits")
     return rows, {"csv_rows_seen": total_seen}
 
-
 def load_data(force: bool = False) -> Dict[str, Any]:
     cached = DATA_CACHE
-    if not force and cached["permits"] and (now_ts() - cached["loaded_at"]) < CACHE_TTL_SECONDS:
+    if not force and cached["rows"] and (now_ts() - cached["loaded_at"]) < CACHE_TTL_SECONDS:
         return cached
 
     errors: List[str] = []
     stats: Dict[str, Any] = {}
-    permits: List[Dict[str, Any]] = []
-    neighborhoods: List[str] = []
+    all_rows: List[Dict[str, Any]] = []
 
     seattle_polys: List[Dict[str, Any]] = []
     try:
@@ -411,29 +440,32 @@ def load_data(force: bool = False) -> Dict[str, Any]:
 
     try:
         seattle_rows, seattle_stats = fetch_seattle_permits(seattle_polys)
-        permits.extend(seattle_rows)
+        all_rows.extend(seattle_rows)
         stats["Seattle"] = {"permits": len(seattle_rows), **seattle_stats}
     except Exception as exc:
         errors.append(f"Seattle permits failed: {exc}")
 
     try:
         bellevue_rows, bellevue_stats = fetch_bellevue_permits()
-        permits.extend(bellevue_rows)
+        all_rows.extend(bellevue_rows)
         stats["Bellevue"] = {"permits": len(bellevue_rows), **bellevue_stats}
     except Exception as exc:
         errors.append(f"Bellevue permits failed: {exc}")
 
-    neighborhoods = sorted({row["neighborhood"] for row in permits if row.get("neighborhood") and row["neighborhood"] != "Unknown"})
+    neighborhoods = sorted({row["neighborhood"] for row in all_rows if row.get("neighborhood") and row["neighborhood"] != "Unknown"})
+    all_rows.sort(key=lambda r: row_sort_dt(r), reverse=True)
+    cached_rows = [slim_row(r) for r in all_rows[:900]]
+    summary_all = compute_summary(all_rows, "intake", "all")
 
     cached.update({
         "loaded_at": now_ts(),
-        "permits": permits,
+        "rows": cached_rows,
         "neighborhoods": neighborhoods,
         "errors": errors,
         "stats": stats,
+        "summary_all": summary_all,
     })
     return cached
-
 
 def row_in_year_range(row: Dict[str, Any], date_mode: str, start_year: int, end_year: int) -> bool:
     dt = row.get("issue_dt") if date_mode == "issued" else row.get("intake_dt")
@@ -593,7 +625,7 @@ def api_meta():
 @app.get("/api/permits")
 def api_permits():
     cache = load_data(force=(request.args.get("refresh") == "1"))
-    filtered = filter_rows(cache["permits"], request.args)
+    filtered = filter_rows(cache["rows"], request.args)
     date_mode = request.args.get("date_mode", "intake")
     summary = compute_summary(filtered, date_mode, request.args.get("neighborhood", "all"))
 
