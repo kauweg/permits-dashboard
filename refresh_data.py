@@ -1,20 +1,12 @@
-
 """Refresh precomputed permit dashboard data.
 
 Run locally, then commit the generated data/*.json files.
 This keeps Render startup instant while still allowing fresh civic-data pulls.
-
-Notes:
-- Seattle permits are pulled from the City of Seattle Socrata dataset 76t5-zqzr.
-- Seattle neighborhoods are pulled from Seattle's ArcGIS nma_nhoods_main layer.
-- Bellevue permits default to the Bellevue hub CSV download URL, but you can override it
-  with BELLEVUE_PERMITS_URL if the city rotates the item URL.
 """
 
 from __future__ import annotations
 
 import csv
-import io
 import json
 import os
 from datetime import datetime, timezone
@@ -27,21 +19,32 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / 'data'
 DATA_DIR.mkdir(exist_ok=True)
 
+SUMMARY_PATH = DATA_DIR / 'summary.json'
+META_PATH = DATA_DIR / 'meta.json'
+DEBUG_PATH = DATA_DIR / 'refresh_debug.json'
+
 YEARS = [2022, 2023, 2024, 2025, 2026]
-VALID_CATEGORIES = ['New SFR', 'New MF', 'Demo']
 
 SEATTLE_PERMITS_URL = 'https://data.seattle.gov/resource/76t5-zqzr.json'
 SEATTLE_NEIGHBORHOODS_URL = (
     'https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/'
     'nma_nhoods_main/FeatureServer/0/query'
 )
-BELLEVUE_PERMITS_CSV = os.getenv(
-    'BELLEVUE_PERMITS_URL',
+BELLEVUE_URL_CANDIDATES = [
+    os.getenv('BELLEVUE_PERMITS_URL', '').strip(),
+    'https://hub.arcgis.com/api/v3/datasets/fc7da7bd29d4493481b17d032e117d09_0/downloads/data?format=csv&spatialRefId=4326',
     'https://hub.arcgis.com/api/download/v1/items/fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=true',
-)
+]
 REQUEST_TIMEOUT = 120
 SESSION = requests.Session()
-SESSION.headers.update({'User-Agent': 'permit-dashboard-precompute/13.0'})
+SESSION.headers.update({'User-Agent': 'permit-dashboard-refresh/14.0'})
+
+
+def load_existing(path: Path, default: Any):
+    try:
+        return json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return default
 
 
 def parse_dt(value: Any):
@@ -106,7 +109,6 @@ def classify(text: str):
 
 
 def extract_point(row: dict[str, Any]):
-    # Flat keys first.
     lat_keys = ['latitude', 'lat', 'y']
     lon_keys = ['longitude', 'lon', 'lng', 'x']
     for la in lat_keys:
@@ -116,7 +118,6 @@ def extract_point(row: dict[str, Any]):
                     return float(row[lo]), float(row[la])
                 except Exception:
                     pass
-    # Socrata location object / string variants.
     loc = row.get('location') or row.get('point') or row.get('coordinates')
     if isinstance(loc, dict):
         coords = loc.get('coordinates')
@@ -154,7 +155,6 @@ def point_in_ring(x: float, y: float, ring: list[list[float]]) -> bool:
 def point_in_polygon(x: float, y: float, rings: list[list[list[float]]]) -> bool:
     if not rings:
         return False
-    # ArcGIS polygons use first ring as exterior; later rings may be holes.
     if not point_in_ring(x, y, rings[0]):
         return False
     for hole in rings[1:]:
@@ -255,8 +255,8 @@ def fetch_seattle_rows(neighborhoods):
 def stream_csv_dicts(url: str) -> Iterable[dict[str, str]]:
     with SESSION.get(url, timeout=REQUEST_TIMEOUT, stream=True) as resp:
         resp.raise_for_status()
-        resp.encoding = resp.encoding or 'utf-8'
-        lines = (line.decode(resp.encoding, errors='replace') for line in resp.iter_lines() if line)
+        encoding = resp.encoding or 'utf-8'
+        lines = (line.decode(encoding, errors='replace') for line in resp.iter_lines() if line)
         reader = csv.DictReader(lines)
         for row in reader:
             yield row
@@ -266,7 +266,6 @@ def pick_first(row: dict[str, Any], keys: list[str]):
     for key in keys:
         if key in row and normalize(row.get(key)):
             return row.get(key)
-    # tolerant fallback for shifted headings
     normalized_map = {normalize(k).lower().replace('_', '').replace(' ', ''): k for k in row.keys()}
     for key in keys:
         probe = normalize(key).lower().replace('_', '').replace(' ', '')
@@ -278,34 +277,51 @@ def pick_first(row: dict[str, Any], keys: list[str]):
 
 def fetch_bellevue_rows():
     out = []
-    seen_columns = set()
-    examined = 0
-    for r in stream_csv_dicts(BELLEVUE_PERMITS_CSV):
-        examined += 1
-        seen_columns.update(r.keys())
-        text = ' '.join(str(v or '') for v in r.values())
-        category = classify(text)
-        if not category:
-            continue
-        issue_dt = parse_dt(pick_first(r, ['ISSUEDATE', 'ISSUE_DATE', 'ISSUED DATE']))
-        intake_dt = parse_dt(pick_first(r, ['APPLICATIONDATE', 'APPLIEDDATE', 'APPLIED DATE', 'APPLICATION_DATE']))
-        year_dt = issue_dt or intake_dt
-        if not year_dt or year_dt.year not in YEARS:
-            continue
-        neighborhood = clean_neighborhood(pick_first(r, ['NEIGHBORHOODAREA', 'NEIGHBORHOOD AREA', 'NEIGHBORHOOD', 'AREA_NAME']))
-        out.append({
-            'jurisdiction': 'Bellevue',
-            'category': category,
-            'neighborhood': neighborhood,
-            'address': normalize(pick_first(r, ['SITEADDRESS', 'SITE ADDRESS', 'ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'])),
-            'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
-            'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
-        })
-    return out, {
-        'rows_examined': examined,
-        'rows_kept': len(out),
-        'columns_seen': sorted(seen_columns)[:40],
-    }
+    diagnostics = {'source_url': None, 'rows_examined': 0, 'rows_kept': 0, 'columns_seen': []}
+    last_error = None
+
+    candidates = [u for u in BELLEVUE_URL_CANDIDATES if u]
+    for url in candidates:
+        seen_columns = set()
+        examined = 0
+        current_out = []
+        try:
+            for r in stream_csv_dicts(url):
+                examined += 1
+                seen_columns.update(r.keys())
+                text = ' '.join(str(v or '') for v in r.values())
+                category = classify(text)
+                if not category:
+                    continue
+                issue_dt = parse_dt(pick_first(r, ['ISSUEDATE', 'ISSUE_DATE', 'ISSUED DATE']))
+                intake_dt = parse_dt(pick_first(r, ['APPLICATIONDATE', 'APPLIEDDATE', 'APPLIED DATE', 'APPLICATION_DATE']))
+                year_dt = issue_dt or intake_dt
+                if not year_dt or year_dt.year not in YEARS:
+                    continue
+                neighborhood = clean_neighborhood(pick_first(r, ['NEIGHBORHOODAREA', 'NEIGHBORHOOD AREA', 'NEIGHBORHOOD', 'AREA_NAME']))
+                current_out.append({
+                    'jurisdiction': 'Bellevue',
+                    'category': category,
+                    'neighborhood': neighborhood,
+                    'address': normalize(pick_first(r, ['SITEADDRESS', 'SITE ADDRESS', 'ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'])),
+                    'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
+                    'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
+                })
+            diagnostics.update({
+                'source_url': url,
+                'rows_examined': examined,
+                'rows_kept': len(current_out),
+                'columns_seen': sorted(seen_columns)[:60],
+            })
+            if current_out:
+                return current_out, diagnostics
+            last_error = RuntimeError(f'Zero target rows from {url}')
+        except Exception as e:
+            last_error = e
+
+    if last_error:
+        raise last_error
+    return out, diagnostics
 
 
 def build_outputs(rows, diagnostics):
@@ -386,6 +402,8 @@ def build_outputs(rows, diagnostics):
 
 
 def main():
+    previous_summary = load_existing(SUMMARY_PATH, {})
+    previous_meta = load_existing(META_PATH, {})
     rows = []
     errors = []
     diagnostics: dict[str, Any] = {'errors': errors}
@@ -407,24 +425,27 @@ def main():
 
     try:
         bellevue_rows, bellevue_info = fetch_bellevue_rows()
+        diagnostics['bellevue_source_url'] = bellevue_info['source_url']
         diagnostics['bellevue_rows_examined'] = bellevue_info['rows_examined']
         diagnostics['bellevue_rows_kept'] = bellevue_info['rows_kept']
         diagnostics['bellevue_columns_seen'] = bellevue_info['columns_seen']
         rows.extend(bellevue_rows)
-        if bellevue_info['rows_kept'] == 0:
-            errors.append(
-                'Bellevue refresh returned zero target rows. Check BELLEVUE_PERMITS_URL or inspect columns_seen in data/refresh_debug.json.'
-            )
     except Exception as e:
         errors.append(f'Bellevue refresh failed: {e}')
 
-    summary, meta = build_outputs(rows, diagnostics)
-    (DATA_DIR / 'summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
-    (DATA_DIR / 'meta.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
-    (DATA_DIR / 'refresh_debug.json').write_text(json.dumps(diagnostics, indent=2), encoding='utf-8')
-    print('Wrote', DATA_DIR / 'summary.json')
-    print('Wrote', DATA_DIR / 'meta.json')
-    print('Wrote', DATA_DIR / 'refresh_debug.json')
+    if not rows:
+        errors.append('Refresh produced zero target rows. Preserving prior summary/meta files.')
+        summary = previous_summary
+        meta = previous_meta
+    else:
+        summary, meta = build_outputs(rows, diagnostics)
+
+    SUMMARY_PATH.write_text(json.dumps(summary, indent=2), encoding='utf-8')
+    META_PATH.write_text(json.dumps(meta, indent=2), encoding='utf-8')
+    DEBUG_PATH.write_text(json.dumps(diagnostics, indent=2), encoding='utf-8')
+    print('Wrote', SUMMARY_PATH)
+    print('Wrote', META_PATH)
+    print('Wrote', DEBUG_PATH)
 
 
 if __name__ == '__main__':

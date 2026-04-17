@@ -11,10 +11,10 @@
     <header class="hero">
       <div>
         <div class="eyebrow">Permit Dashboard</div>
-        <h1>Seattle + Bellevue new construction and demo trends</h1>
-        <p class="subhead">Executive view of 2022–2026 permit activity for New SFR, New MF, and Demo, with neighborhood search and drilldown.</p>
+        <h1>Seattle + Bellevue permit trend view</h1>
+        <p class="subhead">Executive summary for 2022–2026 target permit activity by year, category, and neighborhood.</p>
       </div>
-      <button id="refreshBtn" class="ghost-btn">Refresh data</button>
+      <div class="hero-badge">Precomputed for fast startup</div>
     </header>
 
     <section class="filters panel">
@@ -92,18 +92,12 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Neighborhood ranking</h2>
-          <div class="muted">Click a row to filter the whole dashboard</div>
+          <div class="muted">Click a row to filter the dashboard</div>
         </div>
         <div class="table-wrap tall">
           <table id="neighborhoodTable">
             <thead>
-              <tr>
-                <th>Neighborhood</th>
-                <th>Total</th>
-                <th>New SFR</th>
-                <th>New MF</th>
-                <th>Demo</th>
-              </tr>
+              <tr><th>Neighborhood</th><th>Total</th><th>New SFR</th><th>New MF</th><th>Demo</th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -112,43 +106,26 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Annual metrics by neighborhood</h2>
-          <div class="muted">Year-by-year breakdown for the selected view</div>
+          <div class="muted">Year-by-year total counts</div>
         </div>
         <div class="table-wrap tall">
-          <table id="annualNeighborhoodTable">
-            <thead></thead>
-            <tbody></tbody>
-          </table>
+          <table id="annualNeighborhoodTable"><thead></thead><tbody></tbody></table>
         </div>
       </div>
     </section>
 
     <section class="grid two-col">
       <div class="panel">
-        <div class="panel-head">
-          <h2>Recent permit examples</h2>
-          <div class="muted">Small sample only</div>
-        </div>
+        <div class="panel-head"><h2>Recent permit examples</h2><div class="muted">Small sample only</div></div>
         <div class="table-wrap">
           <table id="sampleTable">
-            <thead>
-              <tr>
-                <th>Jurisdiction</th>
-                <th>Category</th>
-                <th>Neighborhood</th>
-                <th>Address</th>
-                <th>Issued</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Jurisdiction</th><th>Category</th><th>Neighborhood</th><th>Address</th><th>Issued</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head">
-          <h2>Map sample</h2>
-          <div class="muted">Lightweight point preview</div>
-        </div>
+        <div class="panel-head"><h2>Map sample</h2><div class="muted">Lightweight point preview</div></div>
         <div id="mapList" class="map-list"></div>
       </div>
     </section>
