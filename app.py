@@ -11,41 +11,37 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
+# Data sources
 SEATTLE_PERMITS_URL = "https://data.seattle.gov/resource/76t5-zqzr.json"
-SEATTLE_NEIGHBORHOODS_GEOJSON_CANDIDATES = [
-    "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/nma_nhoods_main/FeatureServer/0/query?where=1%3D1&outFields=L_HOOD%2CS_HOOD_ALT_NAMES&returnGeometry=true&outSR=4326&f=geojson",
-    "https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::neighborhood-map-atlas-neighborhoods.geojson",
-]
-SEATTLE_NEIGHBORHOODS_URL = "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/nma_nhoods_main/FeatureServer/0"
-
+SEATTLE_NEIGHBORHOODS_QUERY_URL = (
+    "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/"
+    "nma_nhoods_main/FeatureServer/0/query"
+)
 BELLEVUE_PERMITS_CSV_CANDIDATES = [
-    "https://hub.arcgis.com/api/download/v1/items/fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=false",
     "https://hub.arcgis.com/api/download/v1/items/fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=true",
+    "https://hub.arcgis.com/api/download/v1/items/fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=false",
     "https://hub.arcgis.com/api/v3/datasets/fc7da7bd29d4493481b17d032e117d09_0/downloads/data?format=csv&spatialRefId=4326",
-]
-BELLEVUE_NEIGHBORHOOD_CANDIDATES = [
-    "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/Neighborhood_Areas/FeatureServer/0",
-    "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/Neighborhood_Areas_3/FeatureServer/0",
-    "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/NeighborhoodAreas/FeatureServer/0",
 ]
 
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "21600"))
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "60"))
-USER_AGENT = "permit-web-app/9.0"
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "90"))
+USER_AGENT = "permit-web-app/10.0"
 MIN_YEAR = 2022
 MAX_YEAR = 2026
-
-DATA_CACHE: Dict[str, Any] = {
-    "loaded_at": 0,
-    "permits": [],
-    "neighborhoods": {"Seattle": [], "Bellevue": []},
-    "errors": [],
-}
+MAX_SAMPLE_ROWS = 15
 
 CATEGORY_NEW_SF = "New SFR"
 CATEGORY_NEW_MF = "New MF"
 CATEGORY_DEMO = "Demo"
 VALID_CATEGORIES = [CATEGORY_NEW_SF, CATEGORY_NEW_MF, CATEGORY_DEMO]
+
+DATA_CACHE: Dict[str, Any] = {
+    "loaded_at": 0.0,
+    "permits": [],
+    "neighborhoods": [],
+    "errors": [],
+    "stats": {},
+}
 
 
 def now_ts() -> float:
@@ -89,6 +85,7 @@ def parse_dt(value: Any) -> Optional[datetime]:
         "%Y-%m-%dT%H:%M:%S",
         "%Y/%m/%d %H:%M:%S%z",
         "%Y/%m/%d %H:%M:%S",
+        "%m/%d/%Y %H:%M:%S",
     ):
         try:
             return datetime.strptime(text[:32], fmt)
@@ -106,8 +103,8 @@ def try_float(value: Any) -> Optional[float]:
         return None
 
 
-def normalize_whitespace(text: str) -> str:
-    return " ".join((text or "").split())
+def normalize_whitespace(text: Any) -> str:
+    return " ".join(str(text or "").split())
 
 
 def summarize_text(*parts: Any) -> str:
@@ -115,8 +112,8 @@ def summarize_text(*parts: Any) -> str:
 
 
 def extract_candidate(row: Dict[str, Any], keywords: Iterable[str]) -> Optional[Any]:
-    lowers = {str(k).lower(): v for k, v in row.items()}
-    for key, value in lowers.items():
+    lowered = {str(k).lower(): v for k, v in row.items()}
+    for key, value in lowered.items():
         if any(token in key for token in keywords):
             return value
     return None
@@ -129,65 +126,45 @@ def extract_lon_lat(row: Dict[str, Any]) -> Tuple[Optional[float], Optional[floa
     )
     lon = try_float(
         row.get("longitude") or row.get("Longitude") or row.get("LONGITUDE")
-        or row.get("lon") or row.get("lng") or row.get("LON") or row.get("X") or row.get("x")
+        or row.get("lon") or row.get("lng") or row.get("LON") or row.get("x") or row.get("X")
     )
 
     if lat is None or lon is None:
-        for loc_key in ("location", "Location", "LOCATION", "geocoded_column"):
-            loc = row.get(loc_key)
+        for key in ("location", "Location", "LOCATION", "geocoded_column"):
+            loc = row.get(key)
             if isinstance(loc, dict):
                 lat = lat if lat is not None else try_float(loc.get("latitude") or loc.get("lat"))
-                lon = lon if lon is not None else try_float(loc.get("longitude") or loc.get("lon") or loc.get("lng"))
+                lon = lon if lon is not None else try_float(loc.get("longitude") or loc.get("lng") or loc.get("lon"))
                 coords = loc.get("coordinates")
                 if isinstance(coords, (list, tuple)) and len(coords) >= 2:
                     lon = lon if lon is not None else try_float(coords[0])
                     lat = lat if lat is not None else try_float(coords[1])
 
-    # ArcGIS CSVs sometimes include state-plane X/Y in the ~400000/130000 range; don't treat those as lat/lon.
     if lat is not None and lon is not None and abs(lat) <= 90 and abs(lon) <= 180:
         return lon, lat
     return None, None
 
 
-def iter_polygon_rings(geometry: Dict[str, Any]) -> List[List[Tuple[float, float]]]:
-    if not geometry:
-        return []
-    rings: List[List[Tuple[float, float]]] = []
-    gtype = geometry.get("type")
-    coords = geometry.get("coordinates")
-    if gtype == "Polygon" and isinstance(coords, list):
-        for ring in coords:
-            pts = []
-            if isinstance(ring, list):
-                for pt in ring:
-                    if isinstance(pt, (list, tuple)) and len(pt) >= 2:
-                        pts.append((float(pt[0]), float(pt[1])))
-            if pts:
-                rings.append(pts)
-        return rings
-    if gtype == "MultiPolygon" and isinstance(coords, list):
-        for poly in coords:
-            if isinstance(poly, list):
-                for ring in poly:
-                    pts = []
-                    if isinstance(ring, list):
-                        for pt in ring:
-                            if isinstance(pt, (list, tuple)) and len(pt) >= 2:
-                                pts.append((float(pt[0]), float(pt[1])))
-                    if pts:
-                        rings.append(pts)
-        return rings
-    esri_rings = geometry.get("rings")
-    if isinstance(esri_rings, list):
-        for ring in esri_rings:
-            pts = []
-            if isinstance(ring, list):
-                for pt in ring:
-                    if isinstance(pt, (list, tuple)) and len(pt) >= 2:
-                        pts.append((float(pt[0]), float(pt[1])))
-            if pts:
-                rings.append(pts)
-    return rings
+def point_in_ring(x: float, y: float, ring: List[Tuple[float, float]]) -> bool:
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        intersects = ((yi > y) != (yj > y)) and (
+            x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi
+        )
+        if intersects:
+            inside = not inside
+        j = i
+    return inside
+
+
+def polygon_contains(point: Tuple[float, float], rings: List[List[Tuple[float, float]]]) -> bool:
+    if not rings:
+        return False
+    x, y = point
+    return any(len(ring) >= 3 and point_in_ring(x, y, ring) for ring in rings)
 
 
 def compute_bbox(rings: List[List[Tuple[float, float]]]) -> Optional[Tuple[float, float, float, float]]:
@@ -199,475 +176,287 @@ def compute_bbox(rings: List[List[Tuple[float, float]]]) -> Optional[Tuple[float
     return (min(xs), min(ys), max(xs), max(ys))
 
 
-def polygon_contains(point: Tuple[float, float], rings: List[List[Tuple[float, float]]]) -> bool:
-    x, y = point
-    inside = False
-    for ring in rings:
-        if len(ring) < 3:
-            continue
-        j = len(ring) - 1
-        ring_inside = False
-        for i in range(len(ring)):
-            xi, yi = ring[i]
-            xj, yj = ring[j]
-            intersects = ((yi > y) != (yj > y)) and (
-                x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi
-            )
-            if intersects:
-                ring_inside = not ring_inside
-            j = i
-        inside = inside or ring_inside
-    return inside
-
-
-def assign_neighborhood(lon: Optional[float], lat: Optional[float], neighborhoods: List[Dict[str, Any]]) -> Optional[str]:
-    if lon is None or lat is None:
-        return None
-    point = (lon, lat)
-    for hood in neighborhoods:
-        bbox = hood.get("bbox")
-        if bbox:
-            xmin, ymin, xmax, ymax = bbox
-            if lon < xmin or lon > xmax or lat < ymin or lat > ymax:
-                continue
-        rings = hood.get("rings") or []
-        if rings and polygon_contains(point, rings):
-            return hood.get("name")
-    return None
-
-
 def classify_permit(text: str) -> Optional[str]:
-    text = f" {text.lower()} " if text else ""
     if not text:
         return None
+    text = f" {text.lower()} "
+
     has_demo = any(k in text for k in [
-        " demol", "demolition", " demo ", "teardown", "wrecking", "remove structure", "demo of"
+        " demol", " demolition", " demo ", " teardown", " remove structure", " raze"
     ])
+    if has_demo:
+        return CATEGORY_DEMO
+
     has_new = any(k in text for k in [
-        " new ", "construct", "construction", "new building", "new residence", "new apartment",
-        "new single family", "new multifamily", "building permit - new"
+        " new ", "new construction", "construct", " ground up", "ground-up"
     ])
+
     has_sf = any(k in text for k in [
-        "single family", "single-family", "sfr", "detached house", "new sfr", "single-family residence"
+        " single family", "single-family", " sfr ", " sf residence", "detached house",
+        " residential house", "one-family", "1 family", "single fam"
     ])
     has_mf = any(k in text for k in [
-        "multifamily", "multi-family", "multi family", "apartment", "townhome",
-        "townhouse", "condo", "condominium", "duplex", "triplex", "fourplex",
-        "mixed use", "mixed-use", "rowhouse", "apartments", "multi-unit"
-    ])
-    has_noise = any(k in text for k in [
-        "electrical", "mechanical", "plumbing", "side sewer", "reroof", "re-roof",
-        "sign", "fence", "tree", "grading only", "land use only", "tenant improvement",
-        "sprinkler", "fire alarm", "solar", "water heater", "window replacement",
-        "interior alteration", "interior remodel", "repair only", "occupancy only"
+        " multifamily", "multi-family", " multi family", " apartment", " apartments",
+        " townhome", " townhouse", " condo", " condominium", " duplex", " triplex",
+        " fourplex", " rowhouse", " mixed-use", " mixed use", " adu", " dadu"
     ])
 
-    if has_demo and not any(k in text for k in ["demonstration"]):
-        return CATEGORY_DEMO
-    if has_noise and not has_new:
-        return None
+    if has_new and has_sf and not has_mf:
+        return CATEGORY_NEW_SF
     if has_new and has_mf:
         return CATEGORY_NEW_MF
-    if has_new and has_sf:
+
+    # fallback where permit type already carries the product type but description is sparse
+    if has_sf and any(k in text for k in [" permit", " residence", " dwelling"]):
         return CATEGORY_NEW_SF
-    if any(k in text for k in ["townhome", "townhouse", "duplex", "triplex", "fourplex", "apartment", "condo"]):
-        return CATEGORY_NEW_MF if not has_demo else CATEGORY_DEMO
-    if any(k in text for k in ["single family", "single-family", "sfr"]) and not has_demo:
-        return CATEGORY_NEW_SF
+    if has_mf and any(k in text for k in [" permit", " building", " dwelling"]):
+        return CATEGORY_NEW_MF
     return None
-
-
-def fetch_json(url: str, params: Optional[Dict[str, Any]] = None) -> Any:
-    resp = SESSION.get(url, params=params, timeout=REQUEST_TIMEOUT)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def fetch_text(url: str) -> str:
-    resp = SESSION.get(url, timeout=REQUEST_TIMEOUT)
-    resp.raise_for_status()
-    return resp.text
-
-
-def fetch_geojson_url(url: str) -> List[Dict[str, Any]]:
-    payload = fetch_json(url)
-    feats = payload.get("features") or []
-    if not isinstance(feats, list):
-        raise RuntimeError("GeoJSON response missing features")
-    return feats
-
-
-def fetch_geojson_from_candidates(candidates: List[str]) -> List[Dict[str, Any]]:
-    last_error = None
-    for url in candidates:
-        try:
-            feats = fetch_geojson_url(url)
-            if feats:
-                return feats
-        except Exception as exc:
-            last_error = exc
-    if last_error:
-        raise last_error
-    return []
-
-
-def fetch_arcgis_features_paged(layer_url: str, where: Optional[str] = None) -> List[Dict[str, Any]]:
-    info = fetch_json(layer_url, {"f": "json"})
-    max_record_count = int(info.get("maxRecordCount") or 1000)
-    oid_field = info.get("objectIdField") or info.get("objectIdFieldName") or "OBJECTID"
-    supports_pagination = bool(info.get("advancedQueryCapabilities", {}).get("supportsPagination", False))
-    where_clause = where or "1=1"
-    base_params = {
-        "where": where_clause,
-        "outFields": "*",
-        "returnGeometry": "true",
-        "outSR": "4326",
-        "f": "json",
-    }
-    features: List[Dict[str, Any]] = []
-
-    if supports_pagination:
-        offset = 0
-        page_size = min(max_record_count, 1000)
-        while True:
-            payload = fetch_json(f"{layer_url}/query", {
-                **base_params,
-                "resultOffset": str(offset),
-                "resultRecordCount": str(page_size),
-            })
-            page = payload.get("features") or []
-            features.extend(page)
-            exceeded = payload.get("exceededTransferLimit")
-            if (not exceeded and len(page) < page_size) or not page:
-                break
-            offset += page_size
-            if offset > 100000:
-                break
-        return features
-
-    ids_payload = fetch_json(f"{layer_url}/query", {
-        "where": where_clause,
-        "returnIdsOnly": "true",
-        "f": "json",
-    })
-    object_ids = ids_payload.get("objectIds") or []
-    if not object_ids:
-        return []
-    chunk = min(max_record_count, 250)
-    for i in range(0, len(object_ids), chunk):
-        subset = object_ids[i:i + chunk]
-        payload = fetch_json(f"{layer_url}/query", {
-            **base_params,
-            "where": f"{oid_field} IN ({','.join(str(x) for x in subset)})",
-        })
-        features.extend(payload.get("features") or [])
-    return features
-
-
-def normalize_neighborhood_feature(feature: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    props = feature.get("properties") or feature.get("attributes") or {}
-    geometry = feature.get("geometry") or {}
-    name = (
-        props.get("L_HOOD")
-        or props.get("NAME")
-        or props.get("NEIGHBORHOOD")
-        or props.get("NEIGHBORHOOD_NAME")
-        or props.get("AREA_NAME")
-        or props.get("S_HOOD_ALT_NAMES")
-        or extract_candidate(props, ["hood", "neighborhood", "area_name", "name"])
-    )
-    if not name:
-        return None
-    rings = iter_polygon_rings(geometry)
-    if not rings:
-        return None
-    return {
-        "name": normalize_whitespace(str(name)),
-        "rings": rings,
-        "bbox": compute_bbox(rings),
-    }
-
-
-def normalize_seattle_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    lon, lat = extract_lon_lat(row)
-    description = normalize_whitespace(str(row.get("description") or ""))
-    permit_type = normalize_whitespace(str(row.get("permittype") or row.get("permitclass") or ""))
-    permit_class = normalize_whitespace(str(row.get("permitclass") or ""))
-    status = normalize_whitespace(str(row.get("statuscurrent") or ""))
-    address = normalize_whitespace(str(row.get("originaladdress1") or row.get("address") or ""))
-    text = summarize_text(permit_type, permit_class, description, status)
-    category = classify_permit(text)
-    if not category:
-        return None
-    hood = row.get("neighborhood") or row.get("neighborhoods") or row.get("atlas_neighborhood")
-    return {
-        "jurisdiction": "Seattle",
-        "permit_id": str(row.get("permitnum") or row.get("permitnumber") or "").strip(),
-        "permit_type": permit_type,
-        "permit_class": permit_class,
-        "description": description,
-        "address": address,
-        "status": status,
-        "intake_date": parse_dt(row.get("applieddate")),
-        "issue_date": parse_dt(row.get("issueddate")),
-        "longitude": lon,
-        "latitude": lat,
-        "category": category,
-        "neighborhood": normalize_whitespace(str(hood or "")) or None,
-        "source": "Seattle Building Permits",
-    }
-
-
-def normalize_bellevue_csv_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    lon, lat = extract_lon_lat(row)
-    description = normalize_whitespace(str(
-        row.get("PERMIT TYPE DESCRIPTION") or row.get("PERMIT_TYPE_DESCRIPTION")
-        or row.get("WORK DESCRIPTION") or row.get("WORK_DESCRIPTION")
-        or row.get("DESCRIPTION") or row.get("PROJECT DESCRIPTION")
-        or row.get("PROJECT_DESCRIPTION") or ""
-    ))
-    permit_type = normalize_whitespace(str(
-        row.get("PERMIT TYPE") or row.get("PERMIT_TYPE")
-        or row.get("FOLDER GROUP") or row.get("FOLDER_GROUP")
-        or row.get("TYPE") or ""
-    ))
-    permit_class = normalize_whitespace(str(
-        row.get("PROJECT TYPE") or row.get("PROJECT_TYPE")
-        or row.get("PERMIT CATEGORY") or row.get("PERMIT_CATEGORY")
-        or row.get("SUB TYPE") or row.get("SUB_TYPE") or ""
-    ))
-    address = normalize_whitespace(str(
-        row.get("SITE ADDRESS") or row.get("SITE_ADDRESS")
-        or row.get("ADDRESS") or row.get("PROJECT ADDRESS") or row.get("PROJECT_ADDRESS") or ""
-    ))
-    status = normalize_whitespace(str(row.get("PERMIT STATUS") or row.get("STATUS") or ""))
-    neighborhood = normalize_whitespace(str(
-        row.get("NEIGHBORHOOD AREA") or row.get("NEIGHBORHOOD_AREA")
-        or row.get("NEIGHBORHOOD") or row.get("AREA_NAME") or ""
-    )) or None
-    permit_id = str(
-        row.get("PERMIT NUMBER") or row.get("PERMIT_NUMBER")
-        or row.get("PERMITNUM") or row.get("FOLDER NUMBER") or row.get("FOLDER_NUMBER") or ""
-    ).strip()
-    intake_dt = parse_dt(
-        row.get("APPLICATION DATE") or row.get("APPLICATION_DATE") or row.get("APPLIEDDATE")
-        or row.get("FILE DATE") or row.get("FILE_DATE") or row.get("NOTICE OF APPLICATION")
-    )
-    issue_dt = parse_dt(
-        row.get("ISSUE DATE") or row.get("ISSUE_DATE") or row.get("ISSUEDDATE")
-        or row.get("NOTICE OF DECISION") or row.get("FINAL DATE") or row.get("FINAL_DATE")
-    )
-    text = summarize_text(
-        permit_type,
-        permit_class,
-        description,
-        status,
-        row.get("FOLDER GROUP"),
-        row.get("PROJECT TYPE"),
-        row.get("STRUCTURE TYPE"),
-        row.get("CATEGORY"),
-        neighborhood,
-    )
-    category = classify_permit(text)
-    if not category:
-        return None
-    return {
-        "jurisdiction": "Bellevue",
-        "permit_id": permit_id,
-        "permit_type": permit_type,
-        "permit_class": permit_class,
-        "description": description,
-        "address": address,
-        "status": status,
-        "intake_date": intake_dt,
-        "issue_date": issue_dt,
-        "longitude": lon,
-        "latitude": lat,
-        "category": category,
-        "neighborhood": neighborhood,
-        "source": "Bellevue Permits",
-    }
-
-
-def fetch_seattle_permits() -> List[Dict[str, Any]]:
-    out: List[Dict[str, Any]] = []
-    offset = 0
-    limit = 5000
-    while True:
-        params = {
-            "$limit": str(limit),
-            "$offset": str(offset),
-            "$order": "applieddate DESC",
-            "$where": "applieddate >= '2022-01-01T00:00:00.000'",
-        }
-        rows = fetch_json(SEATTLE_PERMITS_URL, params)
-        if not isinstance(rows, list):
-            raise RuntimeError("Seattle response was not a list")
-        for row in rows:
-            normalized = normalize_seattle_row(row)
-            if normalized:
-                year = normalized["intake_date"].year if normalized.get("intake_date") else None
-                if year is None or year < MIN_YEAR or year > MAX_YEAR:
-                    continue
-                out.append(normalized)
-        if len(rows) < limit:
-            break
-        offset += limit
-        if offset > 100000:
-            break
-    return out
-
-
-def fetch_bellevue_permits() -> List[Dict[str, Any]]:
-    last_error = None
-    for url in BELLEVUE_PERMITS_CSV_CANDIDATES:
-        try:
-            text = fetch_text(url)
-            reader = csv.DictReader(io.StringIO(text))
-            out: List[Dict[str, Any]] = []
-            for row in reader:
-                normalized = normalize_bellevue_csv_row(row)
-                if not normalized:
-                    continue
-                year = normalized["intake_date"].year if normalized.get("intake_date") else None
-                if year is None and normalized.get("issue_date"):
-                    year = normalized["issue_date"].year
-                if year is None or year < MIN_YEAR or year > MAX_YEAR:
-                    continue
-                out.append(normalized)
-            if out:
-                return out
-            last_error = RuntimeError("Bellevue CSV loaded but no target permits matched filters")
-        except Exception as exc:
-            last_error = exc
-    if last_error:
-        raise last_error
-    return []
 
 
 def fetch_seattle_neighborhoods() -> List[Dict[str, Any]]:
-    last_error = None
-    for url in SEATTLE_NEIGHBORHOODS_GEOJSON_CANDIDATES:
-        try:
-            features = fetch_geojson_url(url)
-            out = [n for n in (normalize_neighborhood_feature(f) for f in features) if n]
-            if out:
-                return out
-            last_error = RuntimeError("Seattle neighborhood source returned no polygons")
-        except Exception as exc:
-            last_error = exc
-    try:
-        features = fetch_arcgis_features_paged(SEATTLE_NEIGHBORHOODS_URL)
-        out = [n for n in (normalize_neighborhood_feature(f) for f in features) if n]
-        if out:
-            return out
-    except Exception as exc:
-        last_error = exc
-    if last_error:
-        raise last_error
-    return []
-
-
-def fetch_bellevue_neighborhoods() -> List[Dict[str, Any]]:
-    last_error = None
-    for candidate in BELLEVUE_NEIGHBORHOOD_CANDIDATES:
-        try:
-            features = fetch_arcgis_features_paged(candidate)
-            out = [n for n in (normalize_neighborhood_feature(f) for f in features) if n]
-            if out:
-                return out
-        except Exception as exc:
-            last_error = exc
-    if last_error:
-        raise last_error
-    return []
-
-
-def enrich_neighborhoods(records: List[Dict[str, Any]], neighborhoods: Dict[str, List[Dict[str, Any]]]) -> None:
-    for row in records:
-        if row.get("neighborhood"):
+    resp = SESSION.get(
+        SEATTLE_NEIGHBORHOODS_QUERY_URL,
+        params={
+            "where": "1=1",
+            "outFields": "L_HOOD,S_HOOD_ALT_NAMES",
+            "returnGeometry": "true",
+            "f": "geojson",
+            "outSR": 4326,
+        },
+        timeout=REQUEST_TIMEOUT,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    out: List[Dict[str, Any]] = []
+    for feature in payload.get("features", []):
+        props = feature.get("properties") or {}
+        geom = feature.get("geometry") or {}
+        name = normalize_whitespace(props.get("L_HOOD") or props.get("S_HOOD_ALT_NAMES"))
+        if not name:
             continue
-        hoods = neighborhoods.get(row["jurisdiction"], [])
-        row["neighborhood"] = assign_neighborhood(row.get("longitude"), row.get("latitude"), hoods)
+        rings: List[List[Tuple[float, float]]] = []
+        gtype = geom.get("type")
+        coords = geom.get("coordinates")
+        if gtype == "Polygon":
+            polys = [coords]
+        elif gtype == "MultiPolygon":
+            polys = coords
+        else:
+            polys = []
+        for poly in polys:
+            for ring in poly:
+                pts = []
+                for pt in ring:
+                    if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                        pts.append((float(pt[0]), float(pt[1])))
+                if pts:
+                    rings.append(pts)
+        bbox = compute_bbox(rings)
+        if rings and bbox:
+            out.append({"name": name, "rings": rings, "bbox": bbox})
+    if not out:
+        raise RuntimeError("Seattle neighborhoods returned no polygon features")
+    return out
 
 
-def refresh_cache(force: bool = False) -> Dict[str, Any]:
-    stale = now_ts() - DATA_CACHE["loaded_at"] > CACHE_TTL_SECONDS
-    if not force and DATA_CACHE["loaded_at"] and not stale:
-        return DATA_CACHE
+def fetch_seattle_permits(neighborhoods: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    rows: List[Dict[str, Any]] = []
+    offset = 0
+    page_size = 5000
+    pages = 0
+    while True:
+        pages += 1
+        resp = SESSION.get(
+            SEATTLE_PERMITS_URL,
+            params={
+                "$limit": str(page_size),
+                "$offset": str(offset),
+                "$order": "applieddate ASC",
+                "$select": ",".join([
+                    "permitnum", "permitclass", "permittype", "applieddate", "issueddate",
+                    "statuscurrent", "originaladdress1", "description", "latitude", "longitude"
+                ]),
+                "$where": "applieddate >= '2022-01-01T00:00:00.000'",
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        batch = resp.json()
+        if not batch:
+            break
+        for src in batch:
+            intake = parse_dt(src.get("applieddate"))
+            year = intake.year if intake else None
+            if year is None or year < MIN_YEAR or year > MAX_YEAR:
+                continue
+            text = summarize_text(
+                src.get("permitclass"), src.get("permittype"), src.get("description")
+            )
+            category = classify_permit(text)
+            if not category:
+                continue
+            lon, lat = extract_lon_lat(src)
+            neighborhood = None
+            if lon is not None and lat is not None:
+                for hood in neighborhoods:
+                    xmin, ymin, xmax, ymax = hood["bbox"]
+                    if lon < xmin or lon > xmax or lat < ymin or lat > ymax:
+                        continue
+                    if polygon_contains((lon, lat), hood["rings"]):
+                        neighborhood = hood["name"]
+                        break
+            rows.append({
+                "jurisdiction": "Seattle",
+                "category": category,
+                "permit_id": normalize_whitespace(src.get("permitnum")),
+                "address": normalize_whitespace(src.get("originaladdress1")),
+                "permit_type": normalize_whitespace(src.get("permittype") or src.get("permitclass")),
+                "description": normalize_whitespace(src.get("description")),
+                "status": normalize_whitespace(src.get("statuscurrent")),
+                "neighborhood": neighborhood or "Unknown",
+                "intake_dt": intake,
+                "issue_dt": parse_dt(src.get("issueddate")),
+                "latitude": lat,
+                "longitude": lon,
+            })
+        if len(batch) < page_size:
+            break
+        offset += page_size
+        if pages >= 20:  # safety valve
+            break
+    return rows, {"pages": pages}
+
+
+def choose_bellevue_csv_text() -> str:
+    last_err = None
+    for url in BELLEVUE_PERMITS_CSV_CANDIDATES:
+        try:
+            r = SESSION.get(url, timeout=REQUEST_TIMEOUT)
+            r.raise_for_status()
+            text = r.text
+            if "PERMIT" in text.upper() and "," in text:
+                return text
+        except Exception as exc:
+            last_err = exc
+    raise RuntimeError(f"Bellevue permits download failed: {last_err}")
+
+
+def fetch_bellevue_permits() -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
+    text = choose_bellevue_csv_text()
+    reader = csv.DictReader(io.StringIO(text))
+    rows: List[Dict[str, Any]] = []
+    total_seen = 0
+    for src in reader:
+        total_seen += 1
+        intake = parse_dt(
+            src.get("APPLIED DATE") or src.get("Applied Date") or src.get("DATE APPLIED") or extract_candidate(src, ["applied"])
+        )
+        issue = parse_dt(
+            src.get("ISSUED DATE") or src.get("Issued Date") or src.get("DATE ISSUED") or extract_candidate(src, ["issued"])
+        )
+        date_basis = intake or issue
+        year = date_basis.year if date_basis else None
+        if year is None or year < MIN_YEAR or year > MAX_YEAR:
+            continue
+        permit_type = src.get("PERMIT TYPE DESCRIPTION") or src.get("PERMIT TYPE") or extract_candidate(src, ["permit type", "type description"])
+        subtype = src.get("PROJECT TYPE") or src.get("WORK DESCRIPTION") or src.get("DESCRIPTION") or extract_candidate(src, ["project type", "work description", "description"])
+        status = src.get("PERMIT STATUS") or extract_candidate(src, ["status"])
+        text_blob = summarize_text(permit_type, subtype, status)
+        category = classify_permit(text_blob)
+        if not category:
+            continue
+        lon, lat = extract_lon_lat(src)
+        neighborhood = normalize_whitespace(
+            src.get("NEIGHBORHOOD AREA")
+            or src.get("Neighborhood Area")
+            or src.get("NEIGHBORHOOD")
+            or extract_candidate(src, ["neighborhood area", "neighborhood"])
+        ) or "Unknown"
+        rows.append({
+            "jurisdiction": "Bellevue",
+            "category": category,
+            "permit_id": normalize_whitespace(src.get("PERMIT NUMBER") or src.get("Permit Number") or extract_candidate(src, ["permit number"])),
+            "address": normalize_whitespace(src.get("SITE ADDRESS") or src.get("ADDRESS") or extract_candidate(src, ["site address", "address"])),
+            "permit_type": normalize_whitespace(permit_type),
+            "description": normalize_whitespace(subtype),
+            "status": normalize_whitespace(status),
+            "neighborhood": neighborhood,
+            "intake_dt": intake,
+            "issue_dt": issue,
+            "latitude": lat,
+            "longitude": lon,
+        })
+    if not rows:
+        raise RuntimeError("Bellevue permits parsed successfully but yielded zero target permits")
+    return rows, {"csv_rows_seen": total_seen}
+
+
+def load_data(force: bool = False) -> Dict[str, Any]:
+    cached = DATA_CACHE
+    if not force and cached["permits"] and (now_ts() - cached["loaded_at"]) < CACHE_TTL_SECONDS:
+        return cached
 
     errors: List[str] = []
-    neighborhoods: Dict[str, List[Dict[str, Any]]] = {"Seattle": [], "Bellevue": []}
-    all_records: List[Dict[str, Any]] = []
+    stats: Dict[str, Any] = {}
+    permits: List[Dict[str, Any]] = []
+    neighborhoods: List[str] = []
 
+    seattle_polys: List[Dict[str, Any]] = []
     try:
-        seattle = fetch_seattle_permits()
-        all_records.extend(seattle)
-    except Exception as exc:
-        errors.append(f"Seattle permits failed: {exc}")
-
-    try:
-        bellevue = fetch_bellevue_permits()
-        all_records.extend(bellevue)
-        if not bellevue:
-            errors.append("Bellevue permits loaded zero target records")
-    except Exception as exc:
-        errors.append(f"Bellevue permits failed: {exc}")
-
-    try:
-        neighborhoods["Seattle"] = fetch_seattle_neighborhoods()
-        if not neighborhoods["Seattle"]:
-            errors.append("Seattle neighborhoods loaded zero polygons")
+        seattle_polys = fetch_seattle_neighborhoods()
+        stats["seattle_neighborhoods"] = len(seattle_polys)
     except Exception as exc:
         errors.append(f"Seattle neighborhoods failed: {exc}")
 
     try:
-        neighborhoods["Bellevue"] = fetch_bellevue_neighborhoods()
+        seattle_rows, seattle_stats = fetch_seattle_permits(seattle_polys)
+        permits.extend(seattle_rows)
+        stats["Seattle"] = {"permits": len(seattle_rows), **seattle_stats}
     except Exception as exc:
-        # Bellevue can still work from permit row neighborhood field.
-        errors.append(f"Bellevue neighborhoods failed: {exc}")
+        errors.append(f"Seattle permits failed: {exc}")
 
-    enrich_neighborhoods(all_records, neighborhoods)
+    try:
+        bellevue_rows, bellevue_stats = fetch_bellevue_permits()
+        permits.extend(bellevue_rows)
+        stats["Bellevue"] = {"permits": len(bellevue_rows), **bellevue_stats}
+    except Exception as exc:
+        errors.append(f"Bellevue permits failed: {exc}")
 
-    seattle_unknown = sum(1 for r in all_records if r["jurisdiction"] == "Seattle" and not r.get("neighborhood"))
-    seattle_total = sum(1 for r in all_records if r["jurisdiction"] == "Seattle")
-    if seattle_total and seattle_unknown == seattle_total:
-        errors.append("Seattle neighborhoods loaded but no Seattle permits were spatially assigned")
+    neighborhoods = sorted({row["neighborhood"] for row in permits if row.get("neighborhood") and row["neighborhood"] != "Unknown"})
 
-    DATA_CACHE.update(
-        {
-            "loaded_at": now_ts(),
-            "permits": all_records,
-            "neighborhoods": neighborhoods,
-            "errors": errors,
-        }
-    )
-    return DATA_CACHE
-
-
-def row_year(row: Dict[str, Any], date_mode: str) -> Optional[int]:
-    key = "issue_date" if date_mode == "issued" else "intake_date"
-    dt = row.get(key)
-    return dt.year if isinstance(dt, datetime) else None
+    cached.update({
+        "loaded_at": now_ts(),
+        "permits": permits,
+        "neighborhoods": neighborhoods,
+        "errors": errors,
+        "stats": stats,
+    })
+    return cached
 
 
-def serialize_row(row: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        **row,
-        "intake_date": row["intake_date"].date().isoformat() if row.get("intake_date") else None,
-        "issue_date": row["issue_date"].date().isoformat() if row.get("issue_date") else None,
-        "neighborhood": row.get("neighborhood") or "Unknown",
-    }
+def row_in_year_range(row: Dict[str, Any], date_mode: str, start_year: int, end_year: int) -> bool:
+    dt = row.get("issue_dt") if date_mode == "issued" else row.get("intake_dt")
+    if not dt:
+        dt = row.get("intake_dt") or row.get("issue_dt")
+    if not dt:
+        return False
+    return start_year <= dt.year <= end_year
 
 
-def filter_rows(rows: List[Dict[str, Any]], args: Dict[str, str]) -> List[Dict[str, Any]]:
+def filter_rows(rows: List[Dict[str, Any]], args: Dict[str, Any]) -> List[Dict[str, Any]]:
     jurisdiction = args.get("jurisdiction", "all")
     category = args.get("category", "all")
     neighborhood = args.get("neighborhood", "all")
-    q = (args.get("q") or "").strip().lower()
     date_mode = args.get("date_mode", "intake")
-    start_year = int(args.get("start_year") or MIN_YEAR)
-    end_year = int(args.get("end_year") or MAX_YEAR)
+    q = normalize_whitespace(args.get("q", "")).lower()
+    try:
+        start_year = int(args.get("start_year") or MIN_YEAR)
+        end_year = int(args.get("end_year") or MAX_YEAR)
+    except Exception:
+        start_year, end_year = MIN_YEAR, MAX_YEAR
+    start_year = max(MIN_YEAR, start_year)
+    end_year = min(MAX_YEAR, end_year)
 
     out = []
     for row in rows:
@@ -675,110 +464,149 @@ def filter_rows(rows: List[Dict[str, Any]], args: Dict[str, str]) -> List[Dict[s
             continue
         if category != "all" and row["category"] != category:
             continue
-        row_neighborhood = row.get("neighborhood") or "Unknown"
-        if neighborhood != "all" and row_neighborhood != neighborhood:
+        if neighborhood != "all" and row.get("neighborhood") != neighborhood:
             continue
-        year = row_year(row, date_mode)
-        if year is None or year < start_year or year > end_year:
+        if not row_in_year_range(row, date_mode, start_year, end_year):
             continue
         if q:
-            hay = summarize_text(
-                row.get("permit_id"), row.get("permit_type"), row.get("permit_class"),
-                row.get("description"), row.get("address"), row.get("status"), row_neighborhood,
+            blob = summarize_text(
+                row.get("permit_id"), row.get("address"), row.get("permit_type"), row.get("description"), row.get("neighborhood")
             )
-            if q not in hay:
+            if q not in blob:
                 continue
         out.append(row)
     return out
 
 
-def compute_summary(rows: List[Dict[str, Any]], date_mode: str) -> Dict[str, Any]:
-    years = list(range(MIN_YEAR, MAX_YEAR + 1))
-    category_counts = Counter(r["category"] for r in rows)
-    by_neighborhood = Counter((r.get("neighborhood") or "Unknown") for r in rows)
-    lag_days = []
-    annual_counts = {year: 0 for year in years}
-    annual_category_counts = {year: {cat: 0 for cat in VALID_CATEGORIES} for year in years}
-    neighborhood_year_counts: Dict[str, Dict[int, int]] = defaultdict(lambda: {year: 0 for year in years})
-
+def annual_series(rows: List[Dict[str, Any]], date_mode: str) -> List[Dict[str, Any]]:
+    base = {y: {"year": y, "count": 0, "categories": {c: 0 for c in VALID_CATEGORIES}} for y in range(MIN_YEAR, MAX_YEAR + 1)}
     for row in rows:
-        year = row_year(row, date_mode)
-        if year in annual_counts:
-            annual_counts[year] += 1
-            annual_category_counts[year][row["category"]] += 1
-            hood = row.get("neighborhood") or "Unknown"
-            neighborhood_year_counts[hood][year] += 1
-        if row.get("intake_date") and row.get("issue_date"):
-            delta = (row["issue_date"] - row["intake_date"]).days
-            if 0 <= delta <= 2500:
-                lag_days.append(delta)
+        dt = row.get("issue_dt") if date_mode == "issued" else row.get("intake_dt")
+        if not dt:
+            dt = row.get("intake_dt") or row.get("issue_dt")
+        if not dt:
+            continue
+        if dt.year not in base:
+            continue
+        base[dt.year]["count"] += 1
+        base[dt.year]["categories"][row["category"]] += 1
+    return [base[y] for y in range(MIN_YEAR, MAX_YEAR + 1)]
 
-    top_hoods = by_neighborhood.most_common(12)
-    annual_trend = [{"year": y, "count": annual_counts[y], "categories": annual_category_counts[y]} for y in years]
-    selected_hood = next((h for h, c in top_hoods if h != "Unknown"), "Unknown")
+
+def compute_summary(rows: List[Dict[str, Any]], date_mode: str, selected_neighborhood: str = "all") -> Dict[str, Any]:
+    category_counts = Counter(row["category"] for row in rows)
+    lag_values = []
+    hood_counts = Counter(row.get("neighborhood") for row in rows if row.get("neighborhood") and row.get("neighborhood") != "Unknown")
+    for row in rows:
+        intake = row.get("intake_dt")
+        issue = row.get("issue_dt")
+        if intake and issue:
+            lag_values.append((issue - intake).days)
+
+    hood_year_counts: Dict[str, Dict[int, int]] = defaultdict(lambda: defaultdict(int))
+    hood_category_counts: Dict[str, Counter] = defaultdict(Counter)
+    for row in rows:
+        hood = row.get("neighborhood") or "Unknown"
+        if hood == "Unknown":
+            continue
+        dt = row.get("issue_dt") if date_mode == "issued" else row.get("intake_dt")
+        if not dt:
+            dt = row.get("intake_dt") or row.get("issue_dt")
+        if not dt:
+            continue
+        hood_year_counts[hood][dt.year] += 1
+        hood_category_counts[hood][row["category"]] += 1
+
     neighborhood_breakdown = []
-    for hood, count in top_hoods:
+    for hood, years in hood_year_counts.items():
+        annual = [{"year": y, "count": years.get(y, 0)} for y in range(MIN_YEAR, MAX_YEAR + 1)]
         neighborhood_breakdown.append({
             "name": hood,
-            "count": count,
-            "annual": [{"year": y, "count": neighborhood_year_counts[hood][y]} for y in years],
+            "count": sum(years.values()),
+            "annual": annual,
+            "categories": dict(hood_category_counts[hood]),
         })
+    neighborhood_breakdown.sort(key=lambda x: (-x["count"], x["name"]))
+
+    if selected_neighborhood != "all":
+        selected_name = selected_neighborhood
+        selected_series = next((x["annual"] for x in neighborhood_breakdown if x["name"] == selected_name), [])
+    else:
+        selected_name = neighborhood_breakdown[0]["name"] if neighborhood_breakdown else "Unknown"
+        selected_series = neighborhood_breakdown[0]["annual"] if neighborhood_breakdown else []
+
     return {
         "count": len(rows),
-        "avg_lag_days": round(sum(lag_days) / len(lag_days), 1) if lag_days else None,
-        "years": years,
-        "category_counts": category_counts,
-        "top_neighborhoods": top_hoods,
-        "annual_trend": annual_trend,
-        "neighborhood_breakdown": neighborhood_breakdown,
-        "selected_neighborhood": selected_hood,
-        "selected_neighborhood_annual": [{"year": y, "count": neighborhood_year_counts[selected_hood][y]} for y in years] if selected_hood in neighborhood_year_counts else [],
+        "avg_lag_days": (sum(lag_values) / len(lag_values)) if lag_values else None,
+        "category_counts": dict(category_counts),
+        "annual_trend": annual_series(rows, date_mode),
+        "top_neighborhoods": hood_counts.most_common(12),
+        "neighborhood_breakdown": neighborhood_breakdown[:15],
+        "selected_neighborhood": selected_name,
+        "selected_neighborhood_annual": selected_series,
+    }
+
+
+def serialize_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "jurisdiction": row.get("jurisdiction"),
+        "category": row.get("category"),
+        "permit_id": row.get("permit_id"),
+        "address": row.get("address"),
+        "permit_type": row.get("permit_type"),
+        "description": row.get("description"),
+        "status": row.get("status"),
+        "neighborhood": row.get("neighborhood"),
+        "intake_date": row.get("intake_dt").strftime("%Y-%m-%d") if row.get("intake_dt") else "",
+        "issue_date": row.get("issue_dt").strftime("%Y-%m-%d") if row.get("issue_dt") else "",
+        "latitude": row.get("latitude"),
+        "longitude": row.get("longitude"),
     }
 
 
 @app.route("/")
-def index() -> str:
-    cache = refresh_cache(force=False)
-    neighborhoods = sorted({(r.get("neighborhood") or "Unknown") for r in cache["permits"] if (r.get("neighborhood") or "Unknown") != "Unknown"})
+def index():
+    cache = load_data(force=False)
+    loaded = datetime.utcfromtimestamp(cache["loaded_at"]).strftime("%Y-%m-%d %H:%M UTC") if cache["loaded_at"] else "Not loaded"
     return render_template(
         "index.html",
-        years=list(range(MIN_YEAR, MAX_YEAR + 1)),
-        neighborhoods=neighborhoods,
-        categories=VALID_CATEGORIES,
-        loaded_at=datetime.utcfromtimestamp(cache["loaded_at"]).strftime("%Y-%m-%d %H:%M UTC") if cache["loaded_at"] else "Not loaded",
+        loaded_at=loaded,
         errors=cache["errors"],
+        categories=VALID_CATEGORIES,
+        neighborhoods=cache["neighborhoods"],
+        stats=cache.get("stats", {}),
     )
 
 
-@app.route("/api/permits")
-def api_permits():
-    force = request.args.get("refresh") == "1"
-    cache = refresh_cache(force=force)
-    filtered = filter_rows(cache["permits"], request.args)
-    summary = compute_summary(filtered, request.args.get("date_mode", "intake"))
-    return jsonify({
-        "loaded_at": cache["loaded_at"],
-        "errors": cache["errors"],
-        "summary": summary,
-        "rows": [serialize_row(r) for r in filtered[:25]],
-    })
-
-
-@app.route("/api/meta")
+@app.get("/api/meta")
 def api_meta():
-    cache = refresh_cache(force=False)
-    neighborhoods = sorted({(r.get("neighborhood") or "Unknown") for r in cache["permits"] if (r.get("neighborhood") or "Unknown") != "Unknown"})
+    cache = load_data(force=(request.args.get("refresh") == "1"))
     return jsonify({
-        "years": list(range(MIN_YEAR, MAX_YEAR + 1)),
-        "neighborhoods": neighborhoods,
+        "neighborhoods": cache["neighborhoods"],
         "categories": VALID_CATEGORIES,
+        "stats": cache.get("stats", {}),
         "errors": cache["errors"],
+        "loaded_at": cache["loaded_at"],
     })
 
 
-@app.route("/healthz")
-def healthz():
-    return jsonify({"ok": True})
+@app.get("/api/permits")
+def api_permits():
+    cache = load_data(force=(request.args.get("refresh") == "1"))
+    filtered = filter_rows(cache["permits"], request.args)
+    date_mode = request.args.get("date_mode", "intake")
+    summary = compute_summary(filtered, date_mode, request.args.get("neighborhood", "all"))
+
+    sort_key = (lambda r: r.get("issue_dt") or r.get("intake_dt") or datetime(1900, 1, 1)) if date_mode == "issued" else (lambda r: r.get("intake_dt") or r.get("issue_dt") or datetime(1900, 1, 1))
+    sample = sorted(filtered, key=sort_key, reverse=True)[:MAX_SAMPLE_ROWS]
+
+    return jsonify({
+        "summary": summary,
+        "rows": [serialize_row(r) for r in sample],
+        "errors": cache["errors"],
+        "sample_row_count": len(sample),
+        "total_row_count": len(filtered),
+    })
 
 
 if __name__ == "__main__":

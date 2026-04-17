@@ -1,8 +1,6 @@
 services:
   - type: web
-    name: permit-web-app
+    name: permits-dashboard
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 1 --threads 2 --timeout 120 --bind 0.0.0.0:$PORT
-    plan: free
-    autoDeploy: true
+    startCommand: gunicorn app:app --workers 1 --threads 1 --timeout 120 --bind 0.0.0.0:$PORT
