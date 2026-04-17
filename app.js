@@ -92,18 +92,24 @@ function searchText(row) {
 }
 
 async function fetchSeattle() {
-  const select = [
-    'permitnum', 'permitclass', 'permittype', 'applieddate', 'issueddate', 'statuscurrent', 'originaladdress1', 'description', 'latitude', 'longitude'
-  ].join(',');
-  const where = encodeURIComponent("applieddate >= '2020-01-01T00:00:00'");
-  const limit = 50000;
+  const limit = 5000;
   let offset = 0;
   let out = [];
 
   while (true) {
-    const url = `${SEATTLE_BASE}?$select=${select}&$where=${where}&$order=applieddate DESC&$limit=${limit}&$offset=${offset}`;
+    const params = new URLSearchParams({
+      '$limit': String(limit),
+      '$offset': String(offset),
+      '$order': 'applieddate DESC',
+      '$where': "applieddate >= '2020-01-01T00:00:00.000'"
+    });
+
+    const url = `${SEATTLE_BASE}?${params.toString()}`;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Seattle API request failed (${res.status})`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Seattle API request failed (${res.status}): ${text}`);
+    }
     const rows = await res.json();
     out = out.concat(rows.map(normalizeSeattle));
     if (rows.length < limit) break;
