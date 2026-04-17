@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Permit Signal Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Seattle + Bellevue</div>
+        <h1>Permit Signal Dashboard</h1>
+        <p class="lede">Focused on new single-family, new multifamily, and demo permits with neighborhood-level search.</p>
+      </div>
+      <div class="topbar-right">
+        <div class="stamp">Last cache refresh: <strong>{{ loaded_at }}</strong></div>
+        <button id="refreshBtn" class="btn btn-primary">Refresh live data</button>
+      </div>
+    </header>
+
+    {% if errors %}
+    <section class="warn-box">
+      <strong>Load notes:</strong>
+      <ul>
+        {% for err in errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="panel filters">
+      <div class="filter-grid">
+        <label>
+          <span>Jurisdiction</span>
+          <select id="jurisdiction">
+            <option value="all">Seattle + Bellevue</option>
+            <option value="Seattle">Seattle</option>
+            <option value="Bellevue">Bellevue</option>
+          </select>
+        </label>
+        <label>
+          <span>Category</span>
+          <select id="category">
+            <option value="all">All target permit types</option>
+            {% for c in categories %}
+            <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>Date basis</span>
+          <select id="dateMode">
+            <option value="intake">Application date</option>
+            <option value="issued">Issued date</option>
+          </select>
+        </label>
+        <label>
+          <span>Neighborhood</span>
+          <select id="neighborhood">
+            <option value="all">All neighborhoods</option>
+            {% for n in neighborhoods %}
+            <option value="{{ n }}">{{ n }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>Start year</span>
+          <select id="startYear">
+            {% for y in years %}
+            <option value="{{ y }}" {% if loop.first %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>End year</span>
+          <select id="endYear">
+            {% for y in years %}
+            <option value="{{ y }}" {% if loop.last %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="search-wrap">
+          <span>Search</span>
+          <input id="search" type="text" placeholder="Permit #, address, description, neighborhood">
+        </label>
+      </div>
+    </section>
+
+    <section class="kpi-grid">
+      <article class="panel kpi-card">
+        <div class="kpi-label">Permits in view</div>
+        <div id="kpiCount" class="kpi-value">—</div>
+        <div id="kpiWindow" class="kpi-sub">—</div>
+      </article>
+      <article class="panel kpi-card">
+        <div class="kpi-label">Average issue lag</div>
+        <div id="kpiLag" class="kpi-value">—</div>
+        <div class="kpi-sub">Days from application to issuance</div>
+      </article>
+      <article class="panel kpi-card">
+        <div class="kpi-label">Top mix</div>
+        <div id="kpiMix" class="kpi-value">—</div>
+        <div id="kpiMixSub" class="kpi-sub">—</div>
+      </article>
+      <article class="panel kpi-card">
+        <div class="kpi-label">Neighborhood pulse</div>
+        <div id="kpiHood" class="kpi-value">—</div>
+        <div id="kpiHoodSub" class="kpi-sub">—</div>
+      </article>
+    </section>
+
+    <section class="two-col">
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Permit mix</h2>
+          <div id="sourceBadge" class="pill">Live service</div>
+        </div>
+        <div id="categoryBars" class="stack-bars"></div>
+      </article>
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Neighborhood leaders</h2>
+          <div id="rowCount" class="muted">—</div>
+        </div>
+        <table class="table compact">
+          <thead>
+            <tr><th>Neighborhood</th><th>Count</th></tr>
+          </thead>
+          <tbody id="hoodTable"></tbody>
+        </table>
+      </article>
+    </section>
+
+    <section class="panel map-panel">
+      <div class="panel-header">
+        <h2>Map</h2>
+        <div id="mapMeta" class="muted">—</div>
+      </div>
+      <div id="map"></div>
+    </section>
+
+    <section class="panel table-panel">
+      <div class="panel-header">
+        <h2>Permits</h2>
+        <div class="muted">Showing up to 1,500 rows</div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Jurisdiction</th>
+              <th>Neighborhood</th>
+              <th>Category</th>
+              <th>Permit #</th>
+              <th>Address</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Applied</th>
+              <th>Issued</th>
+            </tr>
+          </thead>
+          <tbody id="permitTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    window.INITIAL_YEARS = {{ years|tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
