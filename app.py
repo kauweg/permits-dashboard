@@ -149,9 +149,10 @@ def polygon_contains(point: Tuple[float, float], rings: List[List[Tuple[float, f
 def iter_polygon_rings(geometry: Dict[str, Any]) -> List[List[Tuple[float, float]]]:
     if not geometry:
         return []
+    rings: List[List[Tuple[float, float]]] = []
+
     gtype = geometry.get("type")
     coords = geometry.get("coordinates")
-    rings: List[List[Tuple[float, float]]] = []
     if gtype == "Polygon" and isinstance(coords, list):
         for ring in coords:
             if isinstance(ring, list):
@@ -161,7 +162,8 @@ def iter_polygon_rings(geometry: Dict[str, Any]) -> List[List[Tuple[float, float
                         pts.append((float(pt[0]), float(pt[1])))
                 if pts:
                     rings.append(pts)
-    elif gtype == "MultiPolygon" and isinstance(coords, list):
+        return rings
+    if gtype == "MultiPolygon" and isinstance(coords, list):
         for poly in coords:
             if isinstance(poly, list):
                 for ring in poly:
@@ -172,7 +174,21 @@ def iter_polygon_rings(geometry: Dict[str, Any]) -> List[List[Tuple[float, float
                                 pts.append((float(pt[0]), float(pt[1])))
                         if pts:
                             rings.append(pts)
-    return rings
+        return rings
+
+    esri_rings = geometry.get("rings")
+    if isinstance(esri_rings, list):
+        for ring in esri_rings:
+            if isinstance(ring, list):
+                pts = []
+                for pt in ring:
+                    if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                        pts.append((float(pt[0]), float(pt[1])))
+                if pts:
+                    rings.append(pts)
+        return rings
+
+    return []
 
 
 def assign_neighborhood(lon: Optional[float], lat: Optional[float], neighborhoods: List[Dict[str, Any]]) -> Optional[str]:
@@ -274,6 +290,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         coords = geometry.get("coordinates") or []
         if len(coords) >= 2:
             lon, lat = try_float(coords[0]), try_float(coords[1])
+    elif isinstance(geometry, dict) and "x" in geometry and "y" in geometry:
+        lon, lat = try_float(geometry.get("x")), try_float(geometry.get("y"))
     if lon is None or lat is None:
         lon, lat = extract_lon_lat(props)
 
@@ -431,7 +449,7 @@ def build_arcgis_date_where(info: Dict[str, Any]) -> str:
     )
 
 
-def fetch_arcgis_geojson_paged(layer_url: str, where: Optional[str] = None) -> List[Dict[str, Any]]:
+def fetch_arcgis_features_paged(layer_url: str, where: Optional[str] = None) -> List[Dict[str, Any]]:
     meta = SESSION.get(layer_url, params={"f": "json"}, timeout=REQUEST_TIMEOUT)
     meta.raise_for_status()
     info = meta.json()
@@ -441,16 +459,20 @@ def fetch_arcgis_geojson_paged(layer_url: str, where: Optional[str] = None) -> L
     where_clause = where or "1=1"
     features: List[Dict[str, Any]] = []
 
+    base_params = {
+        "where": where_clause,
+        "outFields": "*",
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "f": "json",
+    }
+
     if supports_pagination:
         offset = 0
         page_size = min(max_record_count, 1000)
         while True:
             params = {
-                "where": where_clause,
-                "outFields": "*",
-                "returnGeometry": "true",
-                "outSR": "4326",
-                "f": "geojson",
+                **base_params,
                 "resultOffset": str(offset),
                 "resultRecordCount": str(page_size),
             }
@@ -459,7 +481,8 @@ def fetch_arcgis_geojson_paged(layer_url: str, where: Optional[str] = None) -> L
             payload = resp.json()
             page = payload.get("features") or []
             features.extend(page)
-            if len(page) < page_size:
+            exceeded = payload.get("exceededTransferLimit")
+            if (not exceeded and len(page) < page_size) or not page:
                 break
             offset += page_size
             if offset > 100000:
@@ -476,19 +499,13 @@ def fetch_arcgis_geojson_paged(layer_url: str, where: Optional[str] = None) -> L
     object_ids = ids_payload.get("objectIds") or []
     if not object_ids:
         return []
-    chunk = min(max_record_count, 500)
+    chunk = min(max_record_count, 250)
     for i in range(0, len(object_ids), chunk):
         subset = object_ids[i : i + chunk]
         where_subset = f"{oid_field} IN ({','.join(str(x) for x in subset)})"
         resp = SESSION.get(
             f"{layer_url}/query",
-            params={
-                "where": where_subset,
-                "outFields": "*",
-                "returnGeometry": "true",
-                "outSR": "4326",
-                "f": "geojson",
-            },
+            params={**base_params, "where": where_subset},
             timeout=REQUEST_TIMEOUT,
         )
         resp.raise_for_status()
@@ -504,9 +521,9 @@ def fetch_bellevue_permits() -> List[Dict[str, Any]]:
     info = meta.json()
     where = build_arcgis_date_where(info)
     try:
-        features = fetch_arcgis_geojson_paged(BELLEVUE_PERMITS_LAYER, where=where)
+        features = fetch_arcgis_features_paged(BELLEVUE_PERMITS_LAYER, where=where)
     except Exception:
-        features = fetch_arcgis_geojson_paged(BELLEVUE_PERMITS_LAYER, where="1=1")
+        features = fetch_arcgis_features_paged(BELLEVUE_PERMITS_LAYER, where="1=1")
     for feature in features:
         normalized = normalize_bellevue_feature(feature)
         if not normalized:
@@ -521,25 +538,18 @@ def fetch_bellevue_permits() -> List[Dict[str, Any]]:
 
 
 def fetch_seattle_neighborhoods() -> List[Dict[str, Any]]:
-    resp = SESSION.get(
-        SEATTLE_NEIGHBORHOODS_URL,
-        params={
-            "where": "1=1",
-            "outFields": "*",
-            "returnGeometry": "true",
-            "f": "geojson",
-            "outSR": "4326",
-        },
-        timeout=REQUEST_TIMEOUT,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
-    features = payload.get("features") or []
+    features = fetch_arcgis_features_paged(SEATTLE_NEIGHBORHOODS_URL)
     out = []
     for feature in features:
-        props = feature.get("properties") or {}
+        props = feature.get("attributes") or feature.get("properties") or {}
         geometry = feature.get("geometry") or {}
-        name = props.get("L_HOOD") or props.get("S_HOOD") or props.get("name") or extract_candidate(props, ["hood", "neigh"])
+        name = (
+            props.get("L_HOOD")
+            or props.get("S_HOOD")
+            or props.get("NAME")
+            or props.get("name")
+            or extract_candidate(props, ["hood", "neigh"])
+        )
         if not name:
             continue
         rings = iter_polygon_rings(geometry)
@@ -553,7 +563,7 @@ def fetch_bellevue_neighborhoods() -> List[Dict[str, Any]]:
     last_error = None
     for candidate in BELLEVUE_NEIGHBORHOOD_CANDIDATES:
         try:
-            features = fetch_arcgis_geojson_paged(candidate)
+            features = fetch_arcgis_features_paged(candidate)
             out = []
             for feature in features:
                 props = feature.get("properties") or feature.get("attributes") or {}
@@ -682,23 +692,45 @@ def filter_rows(rows: List[Dict[str, Any]], args: Dict[str, str]) -> List[Dict[s
 
 
 def compute_summary(rows: List[Dict[str, Any]], date_mode: str) -> Dict[str, Any]:
-    years = sorted({row_year(r, date_mode) for r in rows if row_year(r, date_mode) is not None})
+    years = list(range(MIN_YEAR, MAX_YEAR + 1))
     category_counts = Counter(r["category"] for r in rows)
     by_neighborhood = Counter((r.get("neighborhood") or "Unknown") for r in rows)
 
     lag_days = []
+    annual_counts = {year: 0 for year in years}
+    annual_category_counts = {year: {cat: 0 for cat in VALID_CATEGORIES} for year in years}
+    neighborhood_year_counts: Dict[str, Dict[int, int]] = defaultdict(lambda: {year: 0 for year in years})
+
     for row in rows:
+        year = row_year(row, date_mode)
+        if year in annual_counts:
+            annual_counts[year] += 1
+            annual_category_counts[year][row["category"]] += 1
+            hood = row.get("neighborhood") or "Unknown"
+            neighborhood_year_counts[hood][year] += 1
         if row.get("intake_date") and row.get("issue_date"):
             delta = (row["issue_date"] - row["intake_date"]).days
             if 0 <= delta <= 2500:
                 lag_days.append(delta)
+
+    top_hoods = by_neighborhood.most_common(10)
+    annual_trend = [{"year": y, "count": annual_counts[y], "categories": annual_category_counts[y]} for y in years]
+    neighborhood_breakdown = []
+    for hood, count in top_hoods:
+        neighborhood_breakdown.append({
+            "name": hood,
+            "count": count,
+            "annual": [{"year": y, "count": neighborhood_year_counts[hood][y]} for y in years],
+        })
 
     return {
         "count": len(rows),
         "avg_lag_days": round(sum(lag_days) / len(lag_days), 1) if lag_days else None,
         "years": years,
         "category_counts": category_counts,
-        "top_neighborhoods": by_neighborhood.most_common(20),
+        "top_neighborhoods": top_hoods,
+        "annual_trend": annual_trend,
+        "neighborhood_breakdown": neighborhood_breakdown,
     }
 
 
@@ -728,7 +760,7 @@ def api_permits():
             "loaded_at": cache["loaded_at"],
             "errors": cache["errors"],
             "summary": summary,
-            "rows": [serialize_row(r) for r in filtered[:1500]],
+            "rows": [serialize_row(r) for r in filtered[:60]],
         }
     )
 
