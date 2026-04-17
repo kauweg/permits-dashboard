@@ -16,7 +16,7 @@
       <div>
         <div class="eyebrow">Seattle + Bellevue · 2022–2026</div>
         <h1>Permit Signal Dashboard</h1>
-        <p class="lede">Focused on new single-family, new multifamily, and demo permits with neighborhood-level search.</p>
+        <p class="lede">Executive view of new single-family, new multifamily, and demo permits with annual trend and neighborhood drilldown.</p>
       </div>
       <div class="topbar-right">
         <div class="stamp">Last cache refresh: <strong>{{ loaded_at }}</strong></div>
@@ -92,7 +92,7 @@
         </label>
         <label class="search-wrap">
           <span>Search</span>
-          <input id="search" type="text" placeholder="Permit #, address, description, neighborhood">
+          <input id="search" type="text" placeholder="Address, permit #, description">
         </label>
       </div>
     </section>
@@ -123,15 +123,26 @@
     <section class="two-col">
       <article class="panel">
         <div class="panel-header">
-          <h2>Permit mix</h2>
+          <h2>Annual trend</h2>
           <div id="sourceBadge" class="pill">Live service</div>
         </div>
-        <div id="categoryBars" class="stack-bars"></div>
+        <div class="chart-note">Counts by selected date basis for the current filter view.</div>
+        <div id="trendChart" class="trend-chart"></div>
       </article>
       <article class="panel">
         <div class="panel-header">
-          <h2>Neighborhood leaders</h2>
+          <h2>Permit mix</h2>
           <div id="rowCount" class="muted">—</div>
+        </div>
+        <div id="categoryBars" class="stack-bars"></div>
+      </article>
+    </section>
+
+    <section class="two-col">
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Neighborhood leaders</h2>
+          <div class="muted">Top neighborhoods in current view</div>
         </div>
         <table class="table compact">
           <thead>
@@ -139,6 +150,28 @@
           </thead>
           <tbody id="hoodTable"></tbody>
         </table>
+      </article>
+      <article class="panel">
+        <div class="panel-header">
+          <h2>Neighborhood annual breakdown</h2>
+          <div class="muted">Top neighborhoods by total permits</div>
+        </div>
+        <div class="table-wrap compact-wrap">
+          <table class="table compact annual-table">
+            <thead>
+              <tr>
+                <th>Neighborhood</th>
+                <th>2022</th>
+                <th>2023</th>
+                <th>2024</th>
+                <th>2025</th>
+                <th>2026</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="hoodAnnualTable"></tbody>
+          </table>
+        </div>
       </article>
     </section>
 
@@ -152,8 +185,8 @@
 
     <section class="panel table-panel">
       <div class="panel-header">
-        <h2>Permits</h2>
-        <div class="muted">Showing up to 1,500 rows</div>
+        <h2>Sample permits</h2>
+        <div class="muted">Showing up to 60 rows for a cleaner executive read</div>
       </div>
       <div class="table-wrap">
         <table class="table">
