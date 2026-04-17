@@ -1,7 +1,6 @@
 import os
 import time
-import math
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -11,7 +10,10 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__)
 
 SEATTLE_PERMITS_URL = "https://data.seattle.gov/resource/76t5-zqzr.json"
-SEATTLE_NEIGHBORHOODS_URL = "https://data.seattle.gov/resource/w3qt-9btr.geojson?$limit=5000"
+SEATTLE_NEIGHBORHOODS_URL = (
+    "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/ArcGIS/rest/services/"
+    "Neighborhood_Map_Atlas_Neighborhoods/FeatureServer/0/query"
+)
 
 BELLEVUE_PERMITS_LAYER = "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/Building_Permits/FeatureServer/0"
 BELLEVUE_NEIGHBORHOOD_CANDIDATES = [
@@ -23,7 +25,9 @@ BELLEVUE_NEIGHBORHOOD_CANDIDATES = [
 
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "21600"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "45"))
-USER_AGENT = "permit-web-app/4.0"
+USER_AGENT = "permit-web-app/5.0"
+MIN_YEAR = 2022
+MAX_YEAR = 2026
 
 DATA_CACHE: Dict[str, Any] = {
     "loaded_at": 0,
@@ -56,7 +60,6 @@ def parse_dt(value: Any) -> Optional[datetime]:
         return None
     if isinstance(value, (int, float)):
         try:
-            # ArcGIS often sends epoch ms.
             if value > 10_000_000_000:
                 return datetime.utcfromtimestamp(value / 1000)
             return datetime.utcfromtimestamp(value)
@@ -152,27 +155,27 @@ def iter_polygon_rings(geometry: Dict[str, Any]) -> List[List[Tuple[float, float
     if gtype == "Polygon" and isinstance(coords, list):
         for ring in coords:
             if isinstance(ring, list):
-                rings.append([(float(x), float(y)) for x, y in ring if len([x, y]) == 2])
+                pts = []
+                for pt in ring:
+                    if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                        pts.append((float(pt[0]), float(pt[1])))
+                if pts:
+                    rings.append(pts)
     elif gtype == "MultiPolygon" and isinstance(coords, list):
         for poly in coords:
             if isinstance(poly, list):
                 for ring in poly:
                     if isinstance(ring, list):
-                        rings.append([(float(x), float(y)) for x, y in ring if len([x, y]) == 2])
+                        pts = []
+                        for pt in ring:
+                            if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                                pts.append((float(pt[0]), float(pt[1])))
+                        if pts:
+                            rings.append(pts)
     return rings
 
 
-def geometry_centroid(geometry: Dict[str, Any]) -> Optional[Tuple[float, float]]:
-    rings = iter_polygon_rings(geometry)
-    pts = [pt for ring in rings for pt in ring]
-    if not pts:
-        return None
-    xs = [p[0] for p in pts]
-    ys = [p[1] for p in pts]
-    return sum(xs) / len(xs), sum(ys) / len(ys)
-
-
-def assign_neighborhood(lon: Optional[float], lat: Optional[float], jurisdiction: str, neighborhoods: List[Dict[str, Any]]) -> Optional[str]:
+def assign_neighborhood(lon: Optional[float], lat: Optional[float], neighborhoods: List[Dict[str, Any]]) -> Optional[str]:
     if lon is None or lat is None:
         return None
     point = (lon, lat)
@@ -192,14 +195,24 @@ def extract_candidate(row: Dict[str, Any], keywords: Iterable[str]) -> Optional[
 
 
 def classify_permit(text: str) -> Optional[str]:
-    text = text.lower()
+    text = f" {text.lower()} " if text else ""
     if not text:
         return None
 
-    has_demo = any(k in text for k in [" demol", "demolition", "teardown", "wrecking", "remove structure"])
-    has_new = any(k in text for k in ["new", "construct", "construction", "building"])
-    has_sf = any(k in text for k in ["single family", "single-family", "sfr", "residential house", "detached house"])
-    has_mf = any(k in text for k in ["multifamily", "multi-family", "apartment", "townhome", "townhouse", "condo", "condominium", "duplex", "triplex", "fourplex", "mixed use", "mixed-use"])
+    has_demo = any(k in text for k in [
+        " demol", "demolition", " demo ", "teardown", "wrecking", "remove structure"
+    ])
+    has_new = any(k in text for k in [
+        " new ", "construct", "construction", "new building", "new residence", "new apartment"
+    ])
+    has_sf = any(k in text for k in [
+        "single family", "single-family", "sfr", "residential house", "detached house", " sf "
+    ])
+    has_mf = any(k in text for k in [
+        "multifamily", "multi-family", "multi family", "apartment", "townhome",
+        "townhouse", "condo", "condominium", "duplex", "triplex", "fourplex",
+        "mixed use", "mixed-use", "rowhouse", "apartments"
+    ])
     has_noise = any(k in text for k in [
         "electrical", "mechanical", "plumbing", "side sewer", "reroof", "re-roof",
         "sign", "fence", "tree", "grading only", "land use only", "tenant improvement",
@@ -216,7 +229,6 @@ def classify_permit(text: str) -> Optional[str]:
     if has_new and has_sf:
         return CATEGORY_NEW_SF
 
-    # Bellevue and Seattle descriptions can be terse. Use fallback patterns.
     if any(k in text for k in ["townhome", "townhouse", "duplex", "triplex", "fourplex", "apartment"]):
         return CATEGORY_NEW_MF if not has_demo else CATEGORY_DEMO
     if any(k in text for k in ["single family", "single-family", "sfr"]) and not has_demo:
@@ -264,10 +276,13 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
             lon, lat = try_float(coords[0]), try_float(coords[1])
     if lon is None or lat is None:
         lon, lat = extract_lon_lat(props)
+
     description = normalize_whitespace(str(
         props.get("PERMITTYPEDESCRIPTION")
         or props.get("PERMIT_TYPE_DESCRIPTION")
         or props.get("DESCRIPTION")
+        or props.get("WORKDESCRIPTION")
+        or props.get("WORK_DESCRIPTION")
         or props.get("description")
         or ""
     ))
@@ -275,6 +290,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         props.get("PERMITTYPE")
         or props.get("PERMIT_TYPE")
         or props.get("TYPE")
+        or props.get("PERMITNAME")
+        or props.get("PERMIT_NAME")
         or props.get("type")
         or ""
     ))
@@ -282,6 +299,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         props.get("PERMITCATEGORY")
         or props.get("PERMIT_CATEGORY")
         or props.get("CATEGORY")
+        or props.get("PROJECTTYPE")
+        or props.get("PROJECT_TYPE")
         or props.get("category")
         or ""
     ))
@@ -289,6 +308,7 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         props.get("STRUCTURETYPE")
         or props.get("STRUCTURE_TYPE")
         or props.get("STRUCTURE")
+        or props.get("SUBTYPE")
         or props.get("structure")
         or ""
     ))
@@ -297,6 +317,7 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("WORK_CLASS")
         or props.get("WORKTYPE")
         or props.get("WORK_TYPE")
+        or props.get("VALUATIONDESCRIPTION")
         or ""
     ))
     address = normalize_whitespace(str(
@@ -304,6 +325,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("SITE_ADDRESS")
         or props.get("ADDRESS")
         or props.get("FULLADDRESS")
+        or props.get("PROJECTADDRESS")
+        or props.get("PROJECT_ADDRESS")
         or ""
     ))
     status = normalize_whitespace(str(
@@ -312,11 +335,19 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("status")
         or ""
     ))
-    text = summarize_text(permit_type, permit_class, description, structure, work_class, status)
+    text = summarize_text(
+        permit_type, permit_class, description, structure, work_class, status,
+        props.get("PROJECTTYPE"), props.get("PROJECT_TYPE"), props.get("SUBTYPE"),
+        props.get("PERMITNAME"), props.get("PERMIT_NAME"), props.get("WORKDESCRIPTION"),
+        props.get("WORK_DESCRIPTION"), props.get("VALUATIONDESCRIPTION")
+    )
     category = classify_permit(text)
     if not category:
         return None
-    hood = props.get("NEIGHBORHOOD") or props.get("NEIGHBORHOODNAME") or props.get("COMMUNITY") or extract_candidate(props, ["neighborhood", "community"])
+    hood = (
+        props.get("NEIGHBORHOOD") or props.get("NEIGHBORHOODNAME") or props.get("COMMUNITY")
+        or props.get("AREA_NAME") or extract_candidate(props, ["neighborhood", "community", "area_name"])
+    )
     permit_id = (
         props.get("PERMITNUMBER")
         or props.get("PERMIT_NUMBER")
@@ -324,6 +355,20 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("PERMITNUM")
         or props.get("PermitNumber")
         or ""
+    )
+    intake_dt = parse_dt(
+        props.get("APPLICATIONDATE")
+        or props.get("APPLIEDDATE")
+        or props.get("APPLICATION_DATE")
+        or props.get("SubmittedDate")
+        or props.get("FILEDATE")
+        or props.get("FILE_DATE")
+    )
+    issue_dt = parse_dt(
+        props.get("ISSUEDDATE")
+        or props.get("ISSUE_DATE")
+        or props.get("IssuedDate")
+        or props.get("FINALIZEDDATE")
     )
     return {
         "jurisdiction": "Bellevue",
@@ -333,17 +378,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         "description": description,
         "address": address,
         "status": status,
-        "intake_date": parse_dt(
-            props.get("APPLICATIONDATE")
-            or props.get("APPLIEDDATE")
-            or props.get("APPLICATION_DATE")
-            or props.get("SubmittedDate")
-        ),
-        "issue_date": parse_dt(
-            props.get("ISSUEDDATE")
-            or props.get("ISSUE_DATE")
-            or props.get("IssuedDate")
-        ),
+        "intake_date": intake_dt,
+        "issue_date": issue_dt,
         "longitude": lon,
         "latitude": lat,
         "category": category,
@@ -361,7 +397,7 @@ def fetch_seattle_permits() -> List[Dict[str, Any]]:
             "$limit": str(limit),
             "$offset": str(offset),
             "$order": "applieddate DESC",
-            "$where": "applieddate >= '2019-01-01T00:00:00.000'",
+            "$where": "applieddate >= '2022-01-01T00:00:00.000'",
         }
         resp = SESSION.get(SEATTLE_PERMITS_URL, params=params, timeout=REQUEST_TIMEOUT)
         resp.raise_for_status()
@@ -380,22 +416,37 @@ def fetch_seattle_permits() -> List[Dict[str, Any]]:
     return out
 
 
-def fetch_arcgis_geojson_paged(layer_url: str) -> List[Dict[str, Any]]:
+def build_arcgis_date_where(info: Dict[str, Any]) -> str:
+    candidates = [
+        "APPLICATIONDATE", "APPLIEDDATE", "APPLICATION_DATE", "SubmittedDate",
+        "FILEDATE", "FILE_DATE", "ISSUEDDATE", "ISSUE_DATE", "IssuedDate"
+    ]
+    field_names = {f.get("name"): f for f in info.get("fields", []) if f.get("name")}
+    date_field = next((name for name in candidates if name in field_names), None)
+    if not date_field:
+        return "1=1"
+    return (
+        f"{date_field} >= DATE '2022-01-01 00:00:00' AND "
+        f"{date_field} < DATE '2027-01-01 00:00:00'"
+    )
+
+
+def fetch_arcgis_geojson_paged(layer_url: str, where: Optional[str] = None) -> List[Dict[str, Any]]:
     meta = SESSION.get(layer_url, params={"f": "json"}, timeout=REQUEST_TIMEOUT)
     meta.raise_for_status()
     info = meta.json()
     max_record_count = int(info.get("maxRecordCount") or 1000)
     oid_field = info.get("objectIdField") or info.get("objectIdFieldName") or info.get("fields", [{}])[0].get("name")
     supports_pagination = bool(info.get("advancedQueryCapabilities", {}).get("supportsPagination", False))
-
+    where_clause = where or "1=1"
     features: List[Dict[str, Any]] = []
 
     if supports_pagination:
         offset = 0
-        page_size = min(max_record_count, 2000)
+        page_size = min(max_record_count, 1000)
         while True:
             params = {
-                "where": "1=1",
+                "where": where_clause,
                 "outFields": "*",
                 "returnGeometry": "true",
                 "outSR": "4326",
@@ -411,14 +462,13 @@ def fetch_arcgis_geojson_paged(layer_url: str) -> List[Dict[str, Any]]:
             if len(page) < page_size:
                 break
             offset += page_size
-            if offset > 250000:
+            if offset > 100000:
                 break
         return features
 
-    # Fallback for services that do not paginate cleanly: get object IDs then chunk.
     ids_resp = SESSION.get(
         f"{layer_url}/query",
-        params={"where": "1=1", "returnIdsOnly": "true", "f": "json"},
+        params={"where": where_clause, "returnIdsOnly": "true", "f": "json"},
         timeout=REQUEST_TIMEOUT,
     )
     ids_resp.raise_for_status()
@@ -426,14 +476,14 @@ def fetch_arcgis_geojson_paged(layer_url: str) -> List[Dict[str, Any]]:
     object_ids = ids_payload.get("objectIds") or []
     if not object_ids:
         return []
-    chunk = 500
+    chunk = min(max_record_count, 500)
     for i in range(0, len(object_ids), chunk):
         subset = object_ids[i : i + chunk]
-        where = f"{oid_field} IN ({','.join(str(x) for x in subset)})"
+        where_subset = f"{oid_field} IN ({','.join(str(x) for x in subset)})"
         resp = SESSION.get(
             f"{layer_url}/query",
             params={
-                "where": where,
+                "where": where_subset,
                 "outFields": "*",
                 "returnGeometry": "true",
                 "outSR": "4326",
@@ -449,16 +499,39 @@ def fetch_arcgis_geojson_paged(layer_url: str) -> List[Dict[str, Any]]:
 
 def fetch_bellevue_permits() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    features = fetch_arcgis_geojson_paged(BELLEVUE_PERMITS_LAYER)
+    meta = SESSION.get(BELLEVUE_PERMITS_LAYER, params={"f": "json"}, timeout=REQUEST_TIMEOUT)
+    meta.raise_for_status()
+    info = meta.json()
+    where = build_arcgis_date_where(info)
+    try:
+        features = fetch_arcgis_geojson_paged(BELLEVUE_PERMITS_LAYER, where=where)
+    except Exception:
+        features = fetch_arcgis_geojson_paged(BELLEVUE_PERMITS_LAYER, where="1=1")
     for feature in features:
         normalized = normalize_bellevue_feature(feature)
-        if normalized:
-            out.append(normalized)
+        if not normalized:
+            continue
+        year = normalized["intake_date"].year if normalized.get("intake_date") else None
+        if year is None and normalized.get("issue_date"):
+            year = normalized["issue_date"].year
+        if year is None or year < MIN_YEAR or year > MAX_YEAR:
+            continue
+        out.append(normalized)
     return out
 
 
 def fetch_seattle_neighborhoods() -> List[Dict[str, Any]]:
-    resp = SESSION.get(SEATTLE_NEIGHBORHOODS_URL, timeout=REQUEST_TIMEOUT)
+    resp = SESSION.get(
+        SEATTLE_NEIGHBORHOODS_URL,
+        params={
+            "where": "1=1",
+            "outFields": "*",
+            "returnGeometry": "true",
+            "f": "geojson",
+            "outSR": "4326",
+        },
+        timeout=REQUEST_TIMEOUT,
+    )
     resp.raise_for_status()
     payload = resp.json()
     features = payload.get("features") or []
@@ -466,7 +539,7 @@ def fetch_seattle_neighborhoods() -> List[Dict[str, Any]]:
     for feature in features:
         props = feature.get("properties") or {}
         geometry = feature.get("geometry") or {}
-        name = props.get("name") or props.get("L_HOOD") or props.get("S_HOOD") or extract_candidate(props, ["hood", "neigh"])
+        name = props.get("L_HOOD") or props.get("S_HOOD") or props.get("name") or extract_candidate(props, ["hood", "neigh"])
         if not name:
             continue
         rings = iter_polygon_rings(geometry)
@@ -490,7 +563,7 @@ def fetch_bellevue_neighborhoods() -> List[Dict[str, Any]]:
                     or props.get("NEIGHBORHOOD")
                     or props.get("NEIGHBORHOOD_NAME")
                     or props.get("AREA_NAME")
-                    or extract_candidate(props, ["name", "neighborhood"])
+                    or extract_candidate(props, ["name", "neighborhood", "area_name"])
                 )
                 if not name:
                     continue
@@ -512,7 +585,7 @@ def enrich_neighborhoods(records: List[Dict[str, Any]], neighborhoods: Dict[str,
         if row.get("neighborhood"):
             continue
         hoods = neighborhoods.get(row["jurisdiction"], [])
-        row["neighborhood"] = assign_neighborhood(row.get("longitude"), row.get("latitude"), row["jurisdiction"], hoods)
+        row["neighborhood"] = assign_neighborhood(row.get("longitude"), row.get("latitude"), hoods)
 
 
 def refresh_cache(force: bool = False) -> Dict[str, Any]:
@@ -577,8 +650,8 @@ def filter_rows(rows: List[Dict[str, Any]], args: Dict[str, str]) -> List[Dict[s
     neighborhood = args.get("neighborhood", "all")
     q = (args.get("q") or "").strip().lower()
     date_mode = args.get("date_mode", "intake")
-    start_year = int(args.get("start_year") or 2019)
-    end_year = int(args.get("end_year") or datetime.utcnow().year)
+    start_year = int(args.get("start_year") or MIN_YEAR)
+    end_year = int(args.get("end_year") or MAX_YEAR)
 
     out = []
     for row in rows:
@@ -586,7 +659,8 @@ def filter_rows(rows: List[Dict[str, Any]], args: Dict[str, str]) -> List[Dict[s
             continue
         if category != "all" and row["category"] != category:
             continue
-        if neighborhood != "all" and (row.get("neighborhood") or "Unknown") != neighborhood:
+        row_neighborhood = row.get("neighborhood") or "Unknown"
+        if neighborhood != "all" and row_neighborhood != neighborhood:
             continue
         year = row_year(row, date_mode)
         if year is None or year < start_year or year > end_year:
@@ -631,9 +705,8 @@ def compute_summary(rows: List[Dict[str, Any]], date_mode: str) -> Dict[str, Any
 @app.route("/")
 def index() -> str:
     cache = refresh_cache(force=False)
-    rows = cache["permits"]
-    years = sorted({row_year(r, "intake") for r in rows if row_year(r, "intake") is not None})
-    neighborhoods = sorted({(r.get("neighborhood") or "Unknown") for r in rows})
+    neighborhoods = sorted({(r.get("neighborhood") or "Unknown") for r in cache["permits"] if (r.get("neighborhood") or "Unknown") != "Unknown"})
+    years = list(range(MIN_YEAR, MAX_YEAR + 1))
     return render_template(
         "index.html",
         years=years,
@@ -664,11 +737,10 @@ def api_permits():
 def api_meta():
     cache = refresh_cache(force=False)
     rows = cache["permits"]
-    years = sorted({row_year(r, "intake") for r in rows if row_year(r, "intake") is not None})
-    neighborhoods = sorted({(r.get("neighborhood") or "Unknown") for r in rows})
+    neighborhoods = sorted({(r.get("neighborhood") or "Unknown") for r in rows if (r.get("neighborhood") or "Unknown") != "Unknown"})
     return jsonify(
         {
-            "years": years,
+            "years": list(range(MIN_YEAR, MAX_YEAR + 1)),
             "neighborhoods": neighborhoods,
             "categories": VALID_CATEGORIES,
             "errors": cache["errors"],

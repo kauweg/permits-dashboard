@@ -43,6 +43,28 @@ function qs(params) {
   return sp.toString();
 }
 
+async function loadMeta() {
+  const res = await fetch('/api/meta');
+  if (!res.ok) throw new Error(`Meta failed (${res.status})`);
+  const data = await res.json();
+
+  const neighborhood = byId('neighborhood');
+  const current = neighborhood.value;
+  neighborhood.innerHTML = '<option value="all">All neighborhoods</option>';
+  (data.neighborhoods || [])
+    .filter((n) => n && n !== 'Unknown')
+    .forEach((n) => {
+      const opt = document.createElement('option');
+      opt.value = n;
+      opt.textContent = n;
+      neighborhood.appendChild(opt);
+    });
+
+  if ([...neighborhood.options].some((o) => o.value === current)) {
+    neighborhood.value = current;
+  }
+}
+
 async function loadRows(force = false) {
   const params = currentFilters();
   if (force) params.refresh = '1';
@@ -143,7 +165,14 @@ function wire() {
     byId(id).addEventListener('change', () => loadRows(false).catch(showError));
   });
   byId('search').addEventListener('input', debounce(() => loadRows(false).catch(showError), 250));
-  byId('refreshBtn').addEventListener('click', () => loadRows(true).catch(showError));
+  byId('refreshBtn').addEventListener('click', async () => {
+    try {
+      await loadMeta();
+      await loadRows(true);
+    } catch (err) {
+      showError(err);
+    }
+  });
 }
 
 function debounce(fn, ms) {
@@ -159,8 +188,13 @@ function showError(err) {
   byId('sourceBadge').textContent = err.message || 'Load failed';
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   initMap();
   wire();
-  loadRows(false).catch(showError);
+  try {
+    await loadMeta();
+    await loadRows(false);
+  } catch (err) {
+    showError(err);
+  }
 });

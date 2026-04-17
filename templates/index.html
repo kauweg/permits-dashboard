@@ -14,7 +14,7 @@
   <div class="shell">
     <header class="topbar">
       <div>
-        <div class="eyebrow">Seattle + Bellevue</div>
+        <div class="eyebrow">Seattle + Bellevue · 2022–2026</div>
         <h1>Permit Signal Dashboard</h1>
         <p class="lede">Focused on new single-family, new multifamily, and demo permits with neighborhood-level search.</p>
       </div>
@@ -73,17 +73,21 @@
         <label>
           <span>Start year</span>
           <select id="startYear">
-            {% for y in years %}
-            <option value="{{ y }}" {% if loop.first %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
+            <option value="2022" selected>2022</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
           </select>
         </label>
         <label>
           <span>End year</span>
           <select id="endYear">
-            {% for y in years %}
-            <option value="{{ y }}" {% if loop.last %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
+            <option value="2022">2022</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026" selected>2026</option>
           </select>
         </label>
         <label class="search-wrap">
@@ -173,9 +177,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    window.INITIAL_YEARS = {{ years|tojson }};
-  </script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
