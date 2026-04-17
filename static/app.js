@@ -1,272 +1,294 @@
+const state = {
+  meta: null,
+  summary: null,
+  selectedNeighborhood: 'all',
+};
+
 const byId = (id) => document.getElementById(id);
-const fmt = (n) => new Intl.NumberFormat('en-US').format(n || 0);
-const fmt1 = (n) => (Number.isFinite(n) ? n.toFixed(1) : '—');
-const state = { map: null, layer: null };
 
-function categoryClass(name) {
-  if (name === 'New SFR') return 'sf';
-  if (name === 'New MF') return 'mf';
-  return 'demo';
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-function badge(category) {
-  const klass = categoryClass(category);
-  return `<span class="badge ${klass}">${category}</span>`;
+function formatNumber(n) {
+  return new Intl.NumberFormat().format(n || 0);
 }
 
-function initMap() {
-  state.map = L.map('map').setView([47.611, -122.21], 11);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap',
-    maxZoom: 19,
-  }).addTo(state.map);
-  state.layer = L.layerGroup().addTo(state.map);
-}
-
-function currentFilters() {
+function getFilters() {
   return {
     jurisdiction: byId('jurisdiction').value,
     category: byId('category').value,
-    date_mode: byId('dateMode').value,
-    neighborhood: byId('neighborhood').value,
+    neighborhood: state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : byId('neighborhood').value,
     start_year: byId('startYear').value,
     end_year: byId('endYear').value,
-    q: byId('search').value.trim(),
   };
 }
 
-function qs(params) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== '') sp.set(k, v);
-  });
-  return sp.toString();
+function queryString(obj) {
+  return new URLSearchParams(obj).toString();
 }
 
-async function loadMeta(force = false) {
-  const res = await fetch(`/api/meta${force ? '?refresh=1' : ''}`);
-  if (!res.ok) throw new Error(`Meta failed (${res.status})`);
-  const data = await res.json();
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return await res.json();
+}
 
-  const neighborhood = byId('neighborhood');
-  const current = neighborhood.value;
-  neighborhood.innerHTML = '<option value="all">All neighborhoods</option>';
-  (data.neighborhoods || []).forEach((n) => {
+async function loadMeta() {
+  state.meta = await fetchJson('/api/meta');
+  populateNeighborhoods(state.meta.neighborhoods || []);
+  renderLoadMessages(state.meta.load_notes || [], state.meta.load_errors || []);
+}
+
+function populateNeighborhoods(items) {
+  const select = byId('neighborhood');
+  const search = byId('neighborhoodSearch');
+  const current = state.selectedNeighborhood === 'all' ? select.value : state.selectedNeighborhood;
+  select.innerHTML = '<option value="all">All neighborhoods</option>';
+  items.forEach((n) => {
     const opt = document.createElement('option');
     opt.value = n;
     opt.textContent = n;
-    neighborhood.appendChild(opt);
+    select.appendChild(opt);
   });
-  if ([...neighborhood.options].some((o) => o.value === current)) {
-    neighborhood.value = current;
+  if ([...select.options].some(o => o.value === current)) {
+    select.value = current;
   }
+  search.value = current !== 'all' ? current : '';
 }
 
-async function loadRows(force = false) {
-  const params = currentFilters();
-  if (force) params.refresh = '1';
-  const res = await fetch(`/api/permits?${qs(params)}`);
-  if (!res.ok) throw new Error(`API failed (${res.status})`);
-  const data = await res.json();
-  render(data);
+async function loadSummary(refresh=false) {
+  const params = getFilters();
+  if (refresh) params.refresh = '1';
+  state.summary = await fetchJson(`/api/summary?${queryString(params)}`);
+  renderLoadMessages(state.summary.load_notes || [], state.summary.load_errors || []);
+  renderCards();
+  renderAnnualChart();
+  renderNeighborhoodTable();
+  renderAnnualNeighborhoodTable();
+  renderDrilldownChart();
+  renderSamples();
+  renderMapList();
 }
 
-function render(data) {
-  const rows = data.rows || [];
-  const summary = data.summary || {};
-  byId('kpiCount').textContent = fmt(summary.count || 0);
-  byId('kpiWindow').textContent = `${byId('startYear').value}–${byId('endYear').value} · ${byId('jurisdiction').value === 'all' ? 'Both jurisdictions' : byId('jurisdiction').value}`;
-  byId('kpiLag').textContent = Number.isFinite(summary.avg_lag_days) ? fmt1(summary.avg_lag_days) : '—';
-
-  const categories = summary.category_counts || {};
-  const topCategory = Object.entries(categories).sort((a, b) => b[1] - a[1])[0];
-  byId('kpiMix').textContent = topCategory ? topCategory[0] : '—';
-  byId('kpiMixSub').textContent = topCategory ? `${fmt(topCategory[1])} permits` : 'No permits in view';
-
-  const topHood = (summary.top_neighborhoods || [])[0];
-  byId('kpiHood').textContent = topHood ? topHood[0] : '—';
-  byId('kpiHoodSub').textContent = topHood ? `${fmt(topHood[1])} permits` : 'No neighborhood signal';
-
-  byId('rowCount').textContent = `${fmt(data.total_row_count || 0)} permits in current view`;
-  byId('sourceBadge').textContent = (data.errors || []).length ? 'Partial live load' : 'Live service';
-
-  renderTrend(summary.annual_trend || [], byId('trendChart'));
-  renderCategoryBars(categories, summary.count || 0);
-  renderNeighborhoodTable(summary.top_neighborhoods || []);
-  renderNeighborhoodAnnual(summary.neighborhood_breakdown || []);
-  renderNeighborhoodDrilldown(summary.selected_neighborhood || 'Unknown', summary.selected_neighborhood_annual || []);
-  renderTable(rows);
-  renderMap(rows);
+function renderLoadMessages(notes, errors) {
+  byId('loadNotes').innerHTML = notes.length ? notes.map(n => `<span class="note-pill">${escapeHtml(n)}</span>`).join('') : '';
+  byId('loadErrors').innerHTML = errors.length ? errors.map(n => `<div>${escapeHtml(n)}</div>`).join('') : '';
 }
 
-function renderTrend(series, container) {
-  if (!series.length) {
-    container.innerHTML = '<div class="empty-note">No annual trend available for the current view.</div>';
+function renderCards() {
+  const c = state.summary.cards;
+  const cards = [
+    ['Total permits', c.total_permits],
+    ['Seattle', c.seattle_permits],
+    ['Bellevue', c.bellevue_permits],
+    ['Known neighborhoods', c.known_neighborhoods],
+    ['New SFR', c.new_sfr],
+    ['New MF', c.new_mf],
+    ['Demo', c.demo],
+  ];
+  byId('cards').innerHTML = cards.map(([label, value]) => `
+    <article class="card">
+      <div class="card-label">${escapeHtml(label)}</div>
+      <div class="card-value">${formatNumber(value)}</div>
+    </article>
+  `).join('');
+}
+
+function drawGroupedBars(canvas, labels, series) {
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.clientWidth * window.devicePixelRatio;
+  const h = canvas.height = canvas.clientHeight * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  ctx.clearRect(0,0,cw,ch);
+  const margin = {left: 42, right: 18, top: 16, bottom: 32};
+  const plotW = cw - margin.left - margin.right;
+  const plotH = ch - margin.top - margin.bottom;
+  const maxVal = Math.max(1, ...series.flatMap(s => s.values));
+
+  ctx.strokeStyle = '#d6dee8';
+  ctx.fillStyle = '#6b7785';
+  ctx.font = '12px Arial';
+  for (let i = 0; i <= 4; i++) {
+    const y = margin.top + plotH - (plotH * i / 4);
+    ctx.beginPath(); ctx.moveTo(margin.left, y); ctx.lineTo(cw - margin.right, y); ctx.stroke();
+    const val = Math.round(maxVal * i / 4);
+    ctx.fillText(String(val), 8, y + 4);
+  }
+
+  const groupW = plotW / Math.max(1, labels.length);
+  const barW = Math.min(22, (groupW - 12) / Math.max(1, series.length));
+  const colors = ['#6d8fb3', '#9cb4c9', '#d8a45b'];
+
+  labels.forEach((label, li) => {
+    const gx = margin.left + li * groupW + 6;
+    series.forEach((s, si) => {
+      const val = s.values[li] || 0;
+      const barH = (val / maxVal) * plotH;
+      const x = gx + si * barW;
+      const y = margin.top + plotH - barH;
+      ctx.fillStyle = colors[si % colors.length];
+      ctx.fillRect(x, y, barW - 2, barH);
+    });
+    ctx.fillStyle = '#334155';
+    ctx.fillText(String(label), gx, ch - 8);
+  });
+
+  let lx = margin.left;
+  series.forEach((s, si) => {
+    ctx.fillStyle = colors[si % colors.length];
+    ctx.fillRect(lx, 2, 12, 12);
+    ctx.fillStyle = '#334155';
+    ctx.fillText(s.name, lx + 18, 12);
+    lx += 88;
+  });
+}
+
+function renderAnnualChart() {
+  const data = state.summary.annual_series;
+  const labels = data.map(r => r.year);
+  drawGroupedBars(byId('annualChart'), labels, [
+    {name: 'New SFR', values: data.map(r => r['New SFR'])},
+    {name: 'New MF', values: data.map(r => r['New MF'])},
+    {name: 'Demo', values: data.map(r => r['Demo'])},
+  ]);
+}
+
+function renderDrilldownChart() {
+  const rows = state.summary.neighborhood_rows || [];
+  const current = state.selectedNeighborhood !== 'all'
+    ? rows.find(r => r.neighborhood === state.selectedNeighborhood)
+    : rows[0];
+  byId('drilldownTitle').textContent = current ? current.neighborhood : 'No neighborhood selected';
+  if (!current) {
+    drawGroupedBars(byId('drilldownChart'), [], []);
     return;
   }
-  const max = Math.max(...series.map((d) => d.count), 1);
-  container.innerHTML = `
-    <div class="trend-grid">
-      ${series.map((d) => `
-          <div class="trend-col">
-            <div class="trend-value">${fmt(d.count)}</div>
-            <div class="trend-stack">
-              <div class="trend-segment demo" style="height:${max ? ((d.categories?.Demo || 0) / max) * 180 : 0}px"></div>
-              <div class="trend-segment mf" style="height:${max ? ((d.categories?.['New MF'] || 0) / max) * 180 : 0}px"></div>
-              <div class="trend-segment sf" style="height:${max ? ((d.categories?.['New SFR'] || 0) / max) * 180 : 0}px"></div>
-            </div>
-            <div class="trend-year">${d.year}</div>
-          </div>`).join('')}
-    </div>`;
+  const labels = Object.keys(current.years);
+  drawGroupedBars(byId('drilldownChart'), labels, [
+    {name: 'New SFR', values: labels.map(y => current.years[y]['New SFR'])},
+    {name: 'New MF', values: labels.map(y => current.years[y]['New MF'])},
+    {name: 'Demo', values: labels.map(y => current.years[y]['Demo'])},
+  ]);
 }
 
-function renderCategoryBars(categories, total) {
-  const ordered = ['New SFR', 'New MF', 'Demo'];
-  byId('categoryBars').innerHTML = ordered.map((name) => {
-    const count = categories[name] || 0;
-    const pct = total ? (count / total) * 100 : 0;
-    const klass = categoryClass(name);
-    return `
-      <div class="bar-row ${klass}">
-        <div>${name}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-        <div>${fmt(count)}</div>
-      </div>`;
-  }).join('');
-}
-
-function hookNeighborhoodClicks(rootId) {
-  byId(rootId).querySelectorAll('[data-neighborhood]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      const hood = e.currentTarget.getAttribute('data-neighborhood');
-      byId('neighborhood').value = hood;
-      loadRows(false).catch(showError);
+function renderNeighborhoodTable() {
+  const tbody = byId('neighborhoodTable').querySelector('tbody');
+  const rows = state.summary.neighborhood_rows || [];
+  tbody.innerHTML = rows.slice(0, 40).map(r => `
+    <tr data-neighborhood="${escapeHtml(r.neighborhood)}" class="${r.neighborhood === state.selectedNeighborhood ? 'selected' : ''}">
+      <td>${escapeHtml(r.neighborhood)}</td>
+      <td>${formatNumber(r.totals.Total)}</td>
+      <td>${formatNumber(r.totals['New SFR'])}</td>
+      <td>${formatNumber(r.totals['New MF'])}</td>
+      <td>${formatNumber(r.totals['Demo'])}</td>
+    </tr>
+  `).join('');
+  tbody.querySelectorAll('tr').forEach((tr) => {
+    tr.addEventListener('click', async () => {
+      state.selectedNeighborhood = tr.dataset.neighborhood;
+      byId('neighborhood').value = state.selectedNeighborhood;
+      byId('neighborhoodSearch').value = state.selectedNeighborhood;
+      await loadSummary(false);
     });
   });
 }
 
-function renderNeighborhoodTable(rows) {
-  byId('hoodTable').innerHTML = rows.length
-    ? rows.slice(0, 12).map(([name, count]) => `<tr class="clickable-row" data-neighborhood="${escapeHtml(name)}"><td><button class="linkish" data-neighborhood="${escapeHtml(name)}">${name}</button></td><td>${fmt(count)}</td></tr>`).join('')
-    : '<tr><td colspan="2">No neighborhoods in current view.</td></tr>';
-  hookNeighborhoodClicks('hoodTable');
-}
-
-function renderNeighborhoodAnnual(rows) {
-  byId('hoodAnnualTable').innerHTML = rows.length
-    ? rows.map((row) => {
-      const annual = Object.fromEntries((row.annual || []).map((x) => [x.year, x.count]));
-      return `
-        <tr class="clickable-row" data-neighborhood="${escapeHtml(row.name)}">
-          <td><button class="linkish" data-neighborhood="${escapeHtml(row.name)}">${row.name}</button></td>
-          <td>${fmt(annual[2022] || 0)}</td>
-          <td>${fmt(annual[2023] || 0)}</td>
-          <td>${fmt(annual[2024] || 0)}</td>
-          <td>${fmt(annual[2025] || 0)}</td>
-          <td>${fmt(annual[2026] || 0)}</td>
-          <td><strong>${fmt(row.count || 0)}</strong></td>
-        </tr>`;
-    }).join('')
-    : '<tr><td colspan="7">No neighborhood breakdown available.</td></tr>';
-  hookNeighborhoodClicks('hoodAnnualTable');
-}
-
-function renderNeighborhoodDrilldown(name, annual) {
-  byId('selectedHoodLabel').textContent = name && name !== 'Unknown' ? `${name} · annual trend` : 'Top neighborhood in current view';
-  const container = byId('hoodDrilldownChart');
-  if (!annual.length) {
-    container.innerHTML = '<div class="empty-note">Select a neighborhood to see its annual trend.</div>';
-    return;
-  }
-  const max = Math.max(...annual.map((d) => d.count), 1);
-  container.innerHTML = `
-    <div class="trend-grid small-grid">
-      ${annual.map((d) => `
-        <div class="trend-col">
-          <div class="trend-value">${fmt(d.count)}</div>
-          <div class="trend-stack single-series">
-            <div class="trend-segment primary" style="height:${Math.max((d.count / max) * 150, d.count > 0 ? 10 : 2)}px"></div>
-          </div>
-          <div class="trend-year">${d.year}</div>
-        </div>`).join('')}
-    </div>`;
-}
-
-function renderTable(rows) {
-  byId('permitTable').innerHTML = rows.length ? rows.map((r) => `
+function renderAnnualNeighborhoodTable() {
+  const rows = state.summary.neighborhood_rows || [];
+  const target = state.selectedNeighborhood !== 'all'
+    ? rows.filter(r => r.neighborhood === state.selectedNeighborhood)
+    : rows.slice(0, 12);
+  const years = state.summary.annual_series.map(r => r.year);
+  const thead = byId('annualNeighborhoodTable').querySelector('thead');
+  const tbody = byId('annualNeighborhoodTable').querySelector('tbody');
+  thead.innerHTML = `
     <tr>
-      <td>${r.jurisdiction}</td>
-      <td>${r.neighborhood || 'Unknown'}</td>
-      <td>${badge(r.category)}</td>
-      <td>${r.permit_id || '—'}</td>
-      <td>${r.address || '—'}</td>
-      <td>${r.permit_type || r.description || '—'}</td>
-      <td>${r.status || '—'}</td>
-      <td>${r.intake_date || '—'}</td>
-      <td>${r.issue_date || '—'}</td>
+      <th>Neighborhood</th>
+      ${years.map(y => `<th>${y}</th>`).join('')}
+      <th>Total</th>
     </tr>
-  `).join('') : '<tr><td colspan="9">No permits found.</td></tr>';
+  `;
+  tbody.innerHTML = target.map(r => `
+    <tr>
+      <td>${escapeHtml(r.neighborhood)}</td>
+      ${years.map(y => `<td>${formatNumber(r.years[String(y)].Total)}</td>`).join('')}
+      <td>${formatNumber(r.totals.Total)}</td>
+    </tr>
+  `).join('');
 }
 
-function renderMap(rows) {
-  state.layer.clearLayers();
-  const mapped = rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).slice(0, 50);
-  mapped.forEach((r) => {
-    const color = r.jurisdiction === 'Seattle' ? '#316fdd' : '#0f766e';
-    const fill = r.jurisdiction === 'Seattle' ? '#93c5fd' : '#5eead4';
-    const marker = L.circleMarker([r.latitude, r.longitude], {
-      radius: 5,
-      color,
-      fillColor: fill,
-      fillOpacity: 0.85,
-      weight: 1,
-    }).bindPopup(`<strong>${r.jurisdiction}</strong><br>${r.neighborhood || 'Unknown'}<br>${r.permit_id || 'No permit #'}<br>${r.address || 'No address'}<br>${r.category}`);
-    marker.addTo(state.layer);
+function renderSamples() {
+  const tbody = byId('sampleTable').querySelector('tbody');
+  tbody.innerHTML = (state.summary.samples || []).map(r => `
+    <tr>
+      <td>${escapeHtml(r.jurisdiction)}</td>
+      <td>${escapeHtml(r.category)}</td>
+      <td>${escapeHtml(r.neighborhood)}</td>
+      <td>${escapeHtml(r.address)}</td>
+      <td>${escapeHtml((r.issue_date || r.intake_date || '').slice(0, 10))}</td>
+    </tr>
+  `).join('');
+}
+
+function renderMapList() {
+  const wrap = byId('mapList');
+  const pts = state.summary.map_points || [];
+  wrap.innerHTML = pts.length ? pts.slice(0, 40).map(p => `
+    <div class="map-pill">
+      <strong>${escapeHtml(p.jurisdiction)}</strong>
+      <span>${escapeHtml(p.category)}</span>
+      <span>${escapeHtml(p.neighborhood)}</span>
+      <span>${escapeHtml(p.address)}</span>
+    </div>
+  `).join('') : '<div class="muted">No mapped points in this filtered view.</div>';
+}
+
+function wireEvents() {
+  ['jurisdiction', 'category', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
+    byId(id).addEventListener('change', async () => {
+      if (id === 'neighborhood') state.selectedNeighborhood = byId('neighborhood').value;
+      await loadSummary(false);
+    });
   });
-  byId('mapMeta').textContent = `${fmt(mapped.length)} mapped sample points`;
-  if (mapped.length) {
-    const bounds = L.latLngBounds(mapped.map((r) => [r.latitude, r.longitude]));
-    state.map.fitBounds(bounds.pad(0.14));
-  }
-}
-
-function escapeHtml(text) {
-  return String(text)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function showError(err) {
-  alert(err?.message || String(err));
-}
-
-function wire() {
-  ['jurisdiction', 'category', 'dateMode', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
-    byId(id).addEventListener('change', () => loadRows(false).catch(showError));
+  byId('neighborhoodSearch').addEventListener('input', () => {
+    const q = byId('neighborhoodSearch').value.trim().toLowerCase();
+    const select = byId('neighborhood');
+    const opts = [...select.options];
+    const hit = opts.find(o => o.value !== 'all' && o.value.toLowerCase().includes(q));
+    if (hit) {
+      select.value = hit.value;
+      state.selectedNeighborhood = hit.value;
+    } else if (!q) {
+      select.value = 'all';
+      state.selectedNeighborhood = 'all';
+    }
   });
-  byId('search').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') loadRows(false).catch(showError);
+  byId('neighborhoodSearch').addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      await loadSummary(false);
+    }
   });
   byId('refreshBtn').addEventListener('click', async () => {
-    try {
-      await loadMeta(true);
-      await loadRows(true);
-    } catch (err) {
-      showError(err);
-    }
+    await loadSummary(true);
+    await loadMeta();
   });
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  initMap();
-  wire();
+  wireEvents();
   try {
-    await loadMeta(false);
-    await loadRows(false);
+    await loadMeta();
+    await loadSummary(false);
   } catch (err) {
-    showError(err);
+    byId('loadErrors').textContent = err.message;
   }
+  window.addEventListener('resize', () => {
+    if (state.summary) {
+      renderAnnualChart();
+      renderDrilldownChart();
+    }
+  });
 });
