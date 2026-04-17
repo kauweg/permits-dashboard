@@ -10,12 +10,13 @@ from flask import Flask, jsonify, render_template, request
 app = Flask(__name__)
 
 SEATTLE_PERMITS_URL = "https://data.seattle.gov/resource/76t5-zqzr.json"
-SEATTLE_NEIGHBORHOODS_URL = (
-    "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/ArcGIS/rest/services/"
-    "Neighborhood_Map_Atlas_Neighborhoods/FeatureServer/0"
-)
+SEATTLE_NEIGHBORHOODS_GEOJSON_URL = "https://data-seattlecitygis.opendata.arcgis.com/api/download/v1/items/531976f80bd74c0992ba9079e4d86e2a/geojson?layers=0"
+SEATTLE_NEIGHBORHOODS_URL = "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/nma_nhoods_main/FeatureServer/0"
 
-BELLEVUE_PERMITS_LAYER = "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/Building_Permits/FeatureServer/0"
+BELLEVUE_PERMITS_GEOJSON_CANDIDATES = [
+    "https://city-of-bellevue-open-data-cobgis.hub.arcgis.com/api/download/v1/items/7d938bb5f7a34458baec15fe395e46ce/geojson?layers=0",
+    "https://opendata.arcgis.com/api/v3/datasets/7d938bb5f7a34458baec15fe395e46ce_0/downloads/data?format=geojson&spatialRefId=4326",
+]
 BELLEVUE_NEIGHBORHOOD_CANDIDATES = [
     "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/Neighborhood_Areas/FeatureServer/0",
     "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/NeighborhoodAreas/FeatureServer/0",
@@ -191,6 +192,30 @@ def iter_polygon_rings(geometry: Dict[str, Any]) -> List[List[Tuple[float, float
     return []
 
 
+
+def fetch_geojson_url(url: str) -> List[Dict[str, Any]]:
+    resp = SESSION.get(url, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    payload = resp.json()
+    feats = payload.get("features") or []
+    if not isinstance(feats, list):
+        raise RuntimeError("GeoJSON response missing features")
+    return feats
+
+
+def fetch_geojson_from_candidates(candidates: List[str]) -> List[Dict[str, Any]]:
+    last_error = None
+    for url in candidates:
+        try:
+            feats = fetch_geojson_url(url)
+            if feats:
+                return feats
+        except Exception as exc:
+            last_error = exc
+    if last_error:
+        raise last_error
+    return []
+
 def assign_neighborhood(lon: Optional[float], lat: Optional[float], neighborhoods: List[Dict[str, Any]]) -> Optional[str]:
     if lon is None or lat is None:
         return None
@@ -301,6 +326,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("DESCRIPTION")
         or props.get("WORKDESCRIPTION")
         or props.get("WORK_DESCRIPTION")
+        or props.get("PROJECT DESCRIPTION")
+        or props.get("PROJECT_DESCRIPTION")
         or props.get("description")
         or ""
     ))
@@ -310,6 +337,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("TYPE")
         or props.get("PERMITNAME")
         or props.get("PERMIT_NAME")
+        or props.get("FOLDER GROUP")
+        or props.get("FOLDER_GROUP")
         or props.get("type")
         or ""
     ))
@@ -319,6 +348,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("CATEGORY")
         or props.get("PROJECTTYPE")
         or props.get("PROJECT_TYPE")
+        or props.get("SUB TYPE")
+        or props.get("SUB_TYPE")
         or props.get("category")
         or ""
     ))
@@ -345,6 +376,8 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
         or props.get("FULLADDRESS")
         or props.get("PROJECTADDRESS")
         or props.get("PROJECT_ADDRESS")
+        or props.get("SITE ADDRESS")
+        or props.get("PROJECT ADDRESS")
         or ""
     ))
     status = normalize_whitespace(str(
@@ -363,30 +396,39 @@ def normalize_bellevue_feature(feature: Dict[str, Any]) -> Optional[Dict[str, An
     if not category:
         return None
     hood = (
-        props.get("NEIGHBORHOOD") or props.get("NEIGHBORHOODNAME") or props.get("COMMUNITY")
-        or props.get("AREA_NAME") or extract_candidate(props, ["neighborhood", "community", "area_name"])
+        props.get("NEIGHBORHOOD") or props.get("NEIGHBORHOODNAME") or props.get("NEIGHBORHOOD AREA")
+        or props.get("NEIGHBORHOOD_AREA") or props.get("SUB AREA") or props.get("SUB_AREA")
+        or props.get("COMMUNITY") or props.get("AREA_NAME")
+        or extract_candidate(props, ["neighborhood", "community", "area_name", "sub area"])
     )
     permit_id = (
         props.get("PERMITNUMBER")
+        or props.get("PERMIT NUMBER")
         or props.get("PERMIT_NUMBER")
         or props.get("permit_number")
         or props.get("PERMITNUM")
         or props.get("PermitNumber")
+        or props.get("FOLDERNUMBER")
+        or props.get("FOLDER NUMBER")
         or ""
     )
     intake_dt = parse_dt(
         props.get("APPLICATIONDATE")
         or props.get("APPLIEDDATE")
+        or props.get("APPLICATION DATE")
         or props.get("APPLICATION_DATE")
         or props.get("SubmittedDate")
         or props.get("FILEDATE")
+        or props.get("FILE DATE")
         or props.get("FILE_DATE")
     )
     issue_dt = parse_dt(
         props.get("ISSUEDDATE")
+        or props.get("ISSUE DATE")
         or props.get("ISSUE_DATE")
         or props.get("IssuedDate")
         or props.get("FINALIZEDDATE")
+        or props.get("NOTICE OF DECISION")
     )
     return {
         "jurisdiction": "Bellevue",
@@ -516,14 +558,7 @@ def fetch_arcgis_features_paged(layer_url: str, where: Optional[str] = None) -> 
 
 def fetch_bellevue_permits() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
-    meta = SESSION.get(BELLEVUE_PERMITS_LAYER, params={"f": "json"}, timeout=REQUEST_TIMEOUT)
-    meta.raise_for_status()
-    info = meta.json()
-    where = build_arcgis_date_where(info)
-    try:
-        features = fetch_arcgis_features_paged(BELLEVUE_PERMITS_LAYER, where=where)
-    except Exception:
-        features = fetch_arcgis_features_paged(BELLEVUE_PERMITS_LAYER, where="1=1")
+    features = fetch_geojson_from_candidates(BELLEVUE_PERMITS_GEOJSON_CANDIDATES)
     for feature in features:
         normalized = normalize_bellevue_feature(feature)
         if not normalized:
@@ -538,16 +573,38 @@ def fetch_bellevue_permits() -> List[Dict[str, Any]]:
 
 
 def fetch_seattle_neighborhoods() -> List[Dict[str, Any]]:
-    features = fetch_arcgis_features_paged(SEATTLE_NEIGHBORHOODS_URL)
     out = []
+    try:
+        features = fetch_geojson_url(SEATTLE_NEIGHBORHOODS_GEOJSON_URL)
+        for feature in features:
+            props = feature.get("properties") or feature.get("attributes") or {}
+            geometry = feature.get("geometry") or {}
+            name = (
+                props.get("L_HOOD")
+                or props.get("S_HOOD_ALT_NAMES")
+                or props.get("S_HOOD")
+                or props.get("NAME")
+                or extract_candidate(props, ["hood", "neigh"])
+            )
+            if not name:
+                continue
+            rings = iter_polygon_rings(geometry)
+            if rings:
+                out.append({"name": str(name).strip(), "rings": rings})
+        if out:
+            return out
+    except Exception:
+        pass
+
+    features = fetch_arcgis_features_paged(SEATTLE_NEIGHBORHOODS_URL)
     for feature in features:
         props = feature.get("attributes") or feature.get("properties") or {}
         geometry = feature.get("geometry") or {}
         name = (
             props.get("L_HOOD")
+            or props.get("S_HOOD_ALT_NAMES")
             or props.get("S_HOOD")
             or props.get("NAME")
-            or props.get("name")
             or extract_candidate(props, ["hood", "neigh"])
         )
         if not name:
@@ -595,7 +652,8 @@ def enrich_neighborhoods(records: List[Dict[str, Any]], neighborhoods: Dict[str,
         if row.get("neighborhood"):
             continue
         hoods = neighborhoods.get(row["jurisdiction"], [])
-        row["neighborhood"] = assign_neighborhood(row.get("longitude"), row.get("latitude"), hoods)
+        assigned = assign_neighborhood(row.get("longitude"), row.get("latitude"), hoods)
+        row["neighborhood"] = assigned
 
 
 def refresh_cache(force: bool = False) -> Dict[str, Any]:
