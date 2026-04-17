@@ -94,16 +94,16 @@ function render(data) {
   byId('rowCount').textContent = `${fmt(rows.length)} rows shown`;
   byId('sourceBadge').textContent = (data.errors || []).length ? 'Partial live load' : 'Live service';
 
-  renderTrend(summary.annual_trend || []);
+  renderTrend(summary.annual_trend || [], byId('trendChart'));
   renderCategoryBars(categories, summary.count || 0);
   renderNeighborhoodTable(summary.top_neighborhoods || []);
   renderNeighborhoodAnnual(summary.neighborhood_breakdown || []);
+  renderNeighborhoodDrilldown(summary.selected_neighborhood || 'Unknown', summary.selected_neighborhood_annual || []);
   renderTable(rows);
   renderMap(rows);
 }
 
-function renderTrend(series) {
-  const container = byId('trendChart');
+function renderTrend(series, container) {
   if (!series.length) {
     container.innerHTML = '<div class="empty-note">No annual trend available for the current view.</div>';
     return;
@@ -112,19 +112,16 @@ function renderTrend(series) {
   const max = Math.max(...series.map((d) => d.count), 1);
   container.innerHTML = `
     <div class="trend-grid">
-      ${series.map((d) => {
-        const h = Math.max((d.count / max) * 180, d.count > 0 ? 10 : 2);
-        return `
+      ${series.map((d) => `
           <div class="trend-col">
             <div class="trend-value">${fmt(d.count)}</div>
             <div class="trend-stack">
-              <div class="trend-segment demo" style="height:${max ? ((d.categories?.Demo || 0) / max) * 180 : 0}px"></div>
-              <div class="trend-segment mf" style="height:${max ? ((d.categories?.['New MF'] || 0) / max) * 180 : 0}px"></div>
-              <div class="trend-segment sf" style="height:${max ? ((d.categories?.['New SFR'] || 0) / max) * 180 : 0}px"></div>
+              <div class="trend-segment demo" style="height:${max ? ((d.categories?.Demo || d.count || 0) / max) * 180 : 0}px"></div>
+              ${d.categories ? `<div class="trend-segment mf" style="height:${max ? ((d.categories?.['New MF'] || 0) / max) * 180 : 0}px"></div>
+              <div class="trend-segment sf" style="height:${max ? ((d.categories?.['New SFR'] || 0) / max) * 180 : 0}px"></div>` : ''}
             </div>
             <div class="trend-year">${d.year}</div>
-          </div>`;
-      }).join('')}
+          </div>`).join('')}
     </div>`;
 }
 
@@ -145,8 +142,16 @@ function renderCategoryBars(categories, total) {
 
 function renderNeighborhoodTable(rows) {
   byId('hoodTable').innerHTML = rows.length
-    ? rows.slice(0, 10).map(([name, count]) => `<tr><td>${name}</td><td>${fmt(count)}</td></tr>`).join('')
+    ? rows.slice(0, 10).map(([name, count]) => `<tr class="clickable-row" data-neighborhood="${escapeHtml(name)}"><td><button class="linkish" data-neighborhood="${escapeHtml(name)}">${name}</button></td><td>${fmt(count)}</td></tr>`).join('')
     : '<tr><td colspan="2">No neighborhoods in current view.</td></tr>';
+
+  byId('hoodTable').querySelectorAll('[data-neighborhood]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      const hood = e.currentTarget.getAttribute('data-neighborhood');
+      byId('neighborhood').value = hood;
+      loadRows(false).catch(showError);
+    });
+  });
 }
 
 function renderNeighborhoodAnnual(rows) {
@@ -154,8 +159,8 @@ function renderNeighborhoodAnnual(rows) {
     ? rows.slice(0, 8).map((row) => {
       const annual = Object.fromEntries((row.annual || []).map((x) => [x.year, x.count]));
       return `
-        <tr>
-          <td>${row.name}</td>
+        <tr class="clickable-row" data-neighborhood="${escapeHtml(row.name)}">
+          <td><button class="linkish" data-neighborhood="${escapeHtml(row.name)}">${row.name}</button></td>
           <td>${fmt(annual[2022] || 0)}</td>
           <td>${fmt(annual[2023] || 0)}</td>
           <td>${fmt(annual[2024] || 0)}</td>
@@ -165,6 +170,35 @@ function renderNeighborhoodAnnual(rows) {
         </tr>`;
     }).join('')
     : '<tr><td colspan="7">No neighborhood breakdown available.</td></tr>';
+
+  byId('hoodAnnualTable').querySelectorAll('[data-neighborhood]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      const hood = e.currentTarget.getAttribute('data-neighborhood');
+      byId('neighborhood').value = hood;
+      loadRows(false).catch(showError);
+    });
+  });
+}
+
+function renderNeighborhoodDrilldown(name, annual) {
+  byId('selectedHoodLabel').textContent = name && name !== 'Unknown' ? `${name} · annual trend` : 'Top neighborhood in current view';
+  const container = byId('hoodDrilldownChart');
+  if (!annual.length) {
+    container.innerHTML = '<div class="empty-note">Select a neighborhood to see its annual trend.</div>';
+    return;
+  }
+  const max = Math.max(...annual.map((d) => d.count), 1);
+  container.innerHTML = `
+    <div class="trend-grid small-grid">
+      ${annual.map((d) => `
+        <div class="trend-col">
+          <div class="trend-value">${fmt(d.count)}</div>
+          <div class="trend-stack single-series">
+            <div class="trend-segment primary" style="height:${Math.max((d.count / max) * 150, d.count > 0 ? 10 : 2)}px"></div>
+          </div>
+          <div class="trend-year">${d.year}</div>
+        </div>`).join('')}
+    </div>`;
 }
 
 function renderTable(rows) {
@@ -185,7 +219,7 @@ function renderTable(rows) {
 
 function renderMap(rows) {
   state.layer.clearLayers();
-  const mapped = rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).slice(0, 250);
+  const mapped = rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).slice(0, 120);
   mapped.forEach((r) => {
     const color = r.jurisdiction === 'Seattle' ? '#316fdd' : '#0f766e';
     const fill = r.jurisdiction === 'Seattle' ? '#93c5fd' : '#5eead4';
@@ -232,6 +266,15 @@ function debounce(fn, ms) {
 function showError(err) {
   console.error(err);
   byId('sourceBadge').textContent = err.message || 'Load failed';
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 window.addEventListener('DOMContentLoaded', async () => {

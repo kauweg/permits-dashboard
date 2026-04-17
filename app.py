@@ -1,6 +1,6 @@
 import os
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -12,7 +12,7 @@ app = Flask(__name__)
 SEATTLE_PERMITS_URL = "https://data.seattle.gov/resource/76t5-zqzr.json"
 SEATTLE_NEIGHBORHOODS_URL = (
     "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/ArcGIS/rest/services/"
-    "Neighborhood_Map_Atlas_Neighborhoods/FeatureServer/0/query"
+    "Neighborhood_Map_Atlas_Neighborhoods/FeatureServer/0"
 )
 
 BELLEVUE_PERMITS_LAYER = "https://services6.arcgis.com/ONZht79c8QWuX759/arcgis/rest/services/Building_Permits/FeatureServer/0"
@@ -713,8 +713,9 @@ def compute_summary(rows: List[Dict[str, Any]], date_mode: str) -> Dict[str, Any
             if 0 <= delta <= 2500:
                 lag_days.append(delta)
 
-    top_hoods = by_neighborhood.most_common(10)
+    top_hoods = by_neighborhood.most_common(12)
     annual_trend = [{"year": y, "count": annual_counts[y], "categories": annual_category_counts[y]} for y in years]
+    selected_hood = next((h for h, c in top_hoods if h != "Unknown"), "Unknown")
     neighborhood_breakdown = []
     for hood, count in top_hoods:
         neighborhood_breakdown.append({
@@ -731,6 +732,8 @@ def compute_summary(rows: List[Dict[str, Any]], date_mode: str) -> Dict[str, Any
         "top_neighborhoods": top_hoods,
         "annual_trend": annual_trend,
         "neighborhood_breakdown": neighborhood_breakdown,
+        "selected_neighborhood": selected_hood,
+        "selected_neighborhood_annual": [{"year": y, "count": neighborhood_year_counts[selected_hood][y]} for y in years] if selected_hood in neighborhood_year_counts else [],
     }
 
 
@@ -760,7 +763,7 @@ def api_permits():
             "loaded_at": cache["loaded_at"],
             "errors": cache["errors"],
             "summary": summary,
-            "rows": [serialize_row(r) for r in filtered[:60]],
+            "rows": [serialize_row(r) for r in filtered[:25]],
         }
     )
 
