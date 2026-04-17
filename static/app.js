@@ -1,7 +1,7 @@
 const byId = (id) => document.getElementById(id);
 const fmt = (n) => new Intl.NumberFormat('en-US').format(n || 0);
 const fmt1 = (n) => (Number.isFinite(n) ? n.toFixed(1) : '—');
-const state = { map: null, layer: null, rows: [] };
+const state = { map: null, layer: null };
 
 function categoryClass(name) {
   if (name === 'New SFR') return 'sf';
@@ -43,23 +43,20 @@ function qs(params) {
   return sp.toString();
 }
 
-async function loadMeta() {
-  const res = await fetch('/api/meta');
+async function loadMeta(force = false) {
+  const res = await fetch(`/api/meta${force ? '?refresh=1' : ''}`);
   if (!res.ok) throw new Error(`Meta failed (${res.status})`);
   const data = await res.json();
 
   const neighborhood = byId('neighborhood');
   const current = neighborhood.value;
   neighborhood.innerHTML = '<option value="all">All neighborhoods</option>';
-  (data.neighborhoods || [])
-    .filter((n) => n && n !== 'Unknown')
-    .forEach((n) => {
-      const opt = document.createElement('option');
-      opt.value = n;
-      opt.textContent = n;
-      neighborhood.appendChild(opt);
-    });
-
+  (data.neighborhoods || []).forEach((n) => {
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    neighborhood.appendChild(opt);
+  });
   if ([...neighborhood.options].some((o) => o.value === current)) {
     neighborhood.value = current;
   }
@@ -71,7 +68,6 @@ async function loadRows(force = false) {
   const res = await fetch(`/api/permits?${qs(params)}`);
   if (!res.ok) throw new Error(`API failed (${res.status})`);
   const data = await res.json();
-  state.rows = data.rows || [];
   render(data);
 }
 
@@ -91,7 +87,7 @@ function render(data) {
   byId('kpiHood').textContent = topHood ? topHood[0] : '—';
   byId('kpiHoodSub').textContent = topHood ? `${fmt(topHood[1])} permits` : 'No neighborhood signal';
 
-  byId('rowCount').textContent = `${fmt(rows.length)} rows shown`;
+  byId('rowCount').textContent = `${fmt(data.total_row_count || 0)} permits in current view`;
   byId('sourceBadge').textContent = (data.errors || []).length ? 'Partial live load' : 'Live service';
 
   renderTrend(summary.annual_trend || [], byId('trendChart'));
@@ -108,7 +104,6 @@ function renderTrend(series, container) {
     container.innerHTML = '<div class="empty-note">No annual trend available for the current view.</div>';
     return;
   }
-
   const max = Math.max(...series.map((d) => d.count), 1);
   container.innerHTML = `
     <div class="trend-grid">
@@ -116,9 +111,9 @@ function renderTrend(series, container) {
           <div class="trend-col">
             <div class="trend-value">${fmt(d.count)}</div>
             <div class="trend-stack">
-              <div class="trend-segment demo" style="height:${max ? ((d.categories?.Demo || d.count || 0) / max) * 180 : 0}px"></div>
-              ${d.categories ? `<div class="trend-segment mf" style="height:${max ? ((d.categories?.['New MF'] || 0) / max) * 180 : 0}px"></div>
-              <div class="trend-segment sf" style="height:${max ? ((d.categories?.['New SFR'] || 0) / max) * 180 : 0}px"></div>` : ''}
+              <div class="trend-segment demo" style="height:${max ? ((d.categories?.Demo || 0) / max) * 180 : 0}px"></div>
+              <div class="trend-segment mf" style="height:${max ? ((d.categories?.['New MF'] || 0) / max) * 180 : 0}px"></div>
+              <div class="trend-segment sf" style="height:${max ? ((d.categories?.['New SFR'] || 0) / max) * 180 : 0}px"></div>
             </div>
             <div class="trend-year">${d.year}</div>
           </div>`).join('')}
@@ -140,12 +135,8 @@ function renderCategoryBars(categories, total) {
   }).join('');
 }
 
-function renderNeighborhoodTable(rows) {
-  byId('hoodTable').innerHTML = rows.length
-    ? rows.slice(0, 10).map(([name, count]) => `<tr class="clickable-row" data-neighborhood="${escapeHtml(name)}"><td><button class="linkish" data-neighborhood="${escapeHtml(name)}">${name}</button></td><td>${fmt(count)}</td></tr>`).join('')
-    : '<tr><td colspan="2">No neighborhoods in current view.</td></tr>';
-
-  byId('hoodTable').querySelectorAll('[data-neighborhood]').forEach((el) => {
+function hookNeighborhoodClicks(rootId) {
+  byId(rootId).querySelectorAll('[data-neighborhood]').forEach((el) => {
     el.addEventListener('click', (e) => {
       const hood = e.currentTarget.getAttribute('data-neighborhood');
       byId('neighborhood').value = hood;
@@ -154,9 +145,16 @@ function renderNeighborhoodTable(rows) {
   });
 }
 
+function renderNeighborhoodTable(rows) {
+  byId('hoodTable').innerHTML = rows.length
+    ? rows.slice(0, 12).map(([name, count]) => `<tr class="clickable-row" data-neighborhood="${escapeHtml(name)}"><td><button class="linkish" data-neighborhood="${escapeHtml(name)}">${name}</button></td><td>${fmt(count)}</td></tr>`).join('')
+    : '<tr><td colspan="2">No neighborhoods in current view.</td></tr>';
+  hookNeighborhoodClicks('hoodTable');
+}
+
 function renderNeighborhoodAnnual(rows) {
   byId('hoodAnnualTable').innerHTML = rows.length
-    ? rows.slice(0, 8).map((row) => {
+    ? rows.map((row) => {
       const annual = Object.fromEntries((row.annual || []).map((x) => [x.year, x.count]));
       return `
         <tr class="clickable-row" data-neighborhood="${escapeHtml(row.name)}">
@@ -170,14 +168,7 @@ function renderNeighborhoodAnnual(rows) {
         </tr>`;
     }).join('')
     : '<tr><td colspan="7">No neighborhood breakdown available.</td></tr>';
-
-  byId('hoodAnnualTable').querySelectorAll('[data-neighborhood]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      const hood = e.currentTarget.getAttribute('data-neighborhood');
-      byId('neighborhood').value = hood;
-      loadRows(false).catch(showError);
-    });
-  });
+  hookNeighborhoodClicks('hoodAnnualTable');
 }
 
 function renderNeighborhoodDrilldown(name, annual) {
@@ -219,7 +210,7 @@ function renderTable(rows) {
 
 function renderMap(rows) {
   state.layer.clearLayers();
-  const mapped = rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).slice(0, 120);
+  const mapped = rows.filter((r) => Number.isFinite(r.latitude) && Number.isFinite(r.longitude)).slice(0, 50);
   mapped.forEach((r) => {
     const color = r.jurisdiction === 'Seattle' ? '#316fdd' : '#0f766e';
     const fill = r.jurisdiction === 'Seattle' ? '#93c5fd' : '#5eead4';
@@ -232,40 +223,11 @@ function renderMap(rows) {
     }).bindPopup(`<strong>${r.jurisdiction}</strong><br>${r.neighborhood || 'Unknown'}<br>${r.permit_id || 'No permit #'}<br>${r.address || 'No address'}<br>${r.category}`);
     marker.addTo(state.layer);
   });
-
   byId('mapMeta').textContent = `${fmt(mapped.length)} mapped sample points`;
   if (mapped.length) {
     const bounds = L.latLngBounds(mapped.map((r) => [r.latitude, r.longitude]));
     state.map.fitBounds(bounds.pad(0.14));
   }
-}
-
-function wire() {
-  ['jurisdiction', 'category', 'dateMode', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
-    byId(id).addEventListener('change', () => loadRows(false).catch(showError));
-  });
-  byId('search').addEventListener('input', debounce(() => loadRows(false).catch(showError), 250));
-  byId('refreshBtn').addEventListener('click', async () => {
-    try {
-      await loadMeta();
-      await loadRows(true);
-    } catch (err) {
-      showError(err);
-    }
-  });
-}
-
-function debounce(fn, ms) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
-function showError(err) {
-  console.error(err);
-  byId('sourceBadge').textContent = err.message || 'Load failed';
 }
 
 function escapeHtml(text) {
@@ -274,14 +236,35 @@ function escapeHtml(text) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll("'", '&#39;');
+}
+
+function showError(err) {
+  alert(err?.message || String(err));
+}
+
+function wire() {
+  ['jurisdiction', 'category', 'dateMode', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
+    byId(id).addEventListener('change', () => loadRows(false).catch(showError));
+  });
+  byId('search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loadRows(false).catch(showError);
+  });
+  byId('refreshBtn').addEventListener('click', async () => {
+    try {
+      await loadMeta(true);
+      await loadRows(true);
+    } catch (err) {
+      showError(err);
+    }
+  });
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
   initMap();
   wire();
   try {
-    await loadMeta();
+    await loadMeta(false);
     await loadRows(false);
   } catch (err) {
     showError(err);
