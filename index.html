@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PNW Construction Permit Dashboard — Seattle & Bellevue</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ HEADER -->
+<header>
+  <div class="header-left">
+    <div class="logo">
+      <div class="logo-mark">PNW</div>
+      <div>
+        <h1>Construction Permits</h1>
+        <div class="tagline">Seattle · Bellevue · 2021–2026</div>
+      </div>
+    </div>
+  </div>
+  <div class="header-center">
+    <div class="city-tabs">
+      <button class="city-tab active" data-city="seattle" onclick="setCity('seattle')">Seattle</button>
+      <button class="city-tab" data-city="bellevue" onclick="setCity('bellevue')">Bellevue</button>
+      <button class="city-tab" data-city="both" onclick="setCity('both')">Both Cities</button>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-indicator">
+      <div class="pulse-dot" id="pulse"></div>
+      <span id="live-lbl">Connecting…</span>
+    </div>
+    <button class="icon-btn" onclick="loadData()" title="Refresh data">↻</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════ STATUS BAR -->
+<div id="status-bar">
+  <span id="status-text">Initializing…</span>
+  <button id="status-detail-btn" onclick="toggleStatusDetail()" style="display:none">details ▾</button>
+</div>
+<div id="status-detail" style="display:none"></div>
+
+<!-- ═══════════════════════════════════════════ SEARCH & FILTERS -->
+<div class="filters-bar">
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.2"/><line x1="9.5" y1="9.5" x2="13" y2="13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    <input type="text" id="search-input" placeholder="Search by address, description, or permit number…" oninput="applyFilters()">
+  </div>
+  <select id="filter-type" onchange="applyFilters()">
+    <option value="all">All types</option>
+    <option value="sfr">Single Family</option>
+    <option value="mf">Multifamily</option>
+    <option value="demo">Demolition</option>
+  </select>
+  <select id="filter-neighborhood" onchange="applyFilters()">
+    <option value="all">All neighborhoods</option>
+  </select>
+  <select id="filter-year" onchange="applyFilters()">
+    <option value="all">All years</option>
+    <option value="2021">2021</option>
+    <option value="2022">2022</option>
+    <option value="2023">2023</option>
+    <option value="2024">2024</option>
+    <option value="2025">2025</option>
+    <option value="2026">2026</option>
+  </select>
+  <div class="filter-count" id="filter-count">— permits</div>
+</div>
+
+<!-- ═══════════════════════════════════════════ KPI STRIP -->
+<div class="kpi-strip" id="kpi-strip">
+  <div class="kpi" id="kpi-total"><div class="kpi-val">—</div><div class="kpi-lbl">Total permits</div></div>
+  <div class="kpi" id="kpi-sfr"><div class="kpi-val">—</div><div class="kpi-lbl">Single family</div></div>
+  <div class="kpi" id="kpi-mf"><div class="kpi-val">—</div><div class="kpi-lbl">Multifamily</div></div>
+  <div class="kpi" id="kpi-demo"><div class="kpi-val">—</div><div class="kpi-lbl">Demolitions</div></div>
+  <div class="kpi" id="kpi-yoy"><div class="kpi-val">—</div><div class="kpi-lbl">YoY change</div></div>
+  <div class="kpi" id="kpi-hot"><div class="kpi-val">—</div><div class="kpi-lbl">Hottest neighborhood</div></div>
+</div>
+
+<!-- ═══════════════════════════════════════════ MAIN CONTENT -->
+<div class="main-layout">
+
+  <!-- LEFT COLUMN: charts -->
+  <div class="charts-col">
+
+    <!-- Annual trend -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Annual permit trend</span>
+        <div class="legend-row" id="trend-legend"></div>
+      </div>
+      <div class="chart-wrap" style="height:200px"><canvas id="trend-chart"></canvas></div>
+    </div>
+
+    <!-- Neighborhood breakdown -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Permits by neighborhood</span>
+        <span class="panel-sub" id="nbhd-year-label">all years</span>
+      </div>
+      <div id="nbhd-bars" class="nbhd-bars"></div>
+    </div>
+
+    <!-- Permit type mix -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Type mix by year</span>
+      </div>
+      <div class="chart-wrap" style="height:160px"><canvas id="type-chart"></canvas></div>
+    </div>
+
+    <!-- Executive insight -->
+    <div class="panel insight-panel">
+      <div class="panel-title" style="margin-bottom:10px">Executive insights</div>
+      <div id="insights"></div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT COLUMN: map -->
+  <div class="map-col">
+    <div class="panel map-panel">
+      <div class="panel-header">
+        <span class="panel-title" id="map-title">Permit map</span>
+        <div class="map-controls">
+          <button class="map-btn active" onclick="setMapMode('dots')" id="btn-dots">Points</button>
+          <button class="map-btn" onclick="setMapMode('heat')" id="btn-heat">Heat</button>
+        </div>
+      </div>
+      <div id="map-wrap">
+        <div id="map"></div>
+        <div class="map-legend-box" id="map-legend">
+          <div class="ml-row"><div class="ml-dot" style="background:#4f8ef7"></div>Single family</div>
+          <div class="ml-row"><div class="ml-dot" style="background:#e8593c"></div>Multifamily</div>
+          <div class="ml-row"><div class="ml-dot" style="background:#f5c842"></div>Demolition</div>
+        </div>
+        <div class="map-count-badge" id="map-badge"></div>
+      </div>
+    </div>
+
+    <!-- Permit table -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Permit records</span>
+        <span class="panel-sub" id="table-count"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="permit-table">
+          <thead><tr>
+            <th>Date</th><th>Type</th><th>Address</th><th>Neighborhood</th><th>City</th><th>Description</th>
+          </tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div class="table-pagination" id="pagination"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════ SCRIPTS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
