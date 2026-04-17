@@ -1,0 +1,6 @@
+services:
+  - type: static_site
+    name: permit-signal-dashboard
+    env: static
+    staticPublishPath: .
+    pullRequestPreviewsEnabled: true
