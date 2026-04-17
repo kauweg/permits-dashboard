@@ -39,3 +39,8 @@ Then commit and push:
 - The app starts from precomputed JSON so Render stays fast.
 - The refresh script now tries multiple Bellevue CSV URLs before failing.
 - If refresh fails completely, it preserves the prior summary/meta files instead of wiping them out.
+
+
+## Broader category coverage
+- The dashboard now shows Demo, New SFR, New MF, and Other New.
+- To update counts for the broader all-new-construction bucket, run `python refresh_data.py` locally and commit the refreshed `data/*.json` files.

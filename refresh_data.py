@@ -24,6 +24,7 @@ META_PATH = DATA_DIR / 'meta.json'
 DEBUG_PATH = DATA_DIR / 'refresh_debug.json'
 
 YEARS = [2022, 2023, 2024, 2025, 2026]
+VALID_CATEGORIES = ['New SFR', 'New MF', 'Other New', 'Demo']
 
 SEATTLE_PERMITS_URL = 'https://data.seattle.gov/resource/76t5-zqzr.json'
 SEATTLE_NEIGHBORHOODS_URL = (
@@ -90,21 +91,34 @@ def clean_neighborhood(text: Any) -> str:
     return value
 
 
+
 def classify(text: str):
     t = f" {normalize(text).lower()} "
     if any(k in t for k in [' demol', ' demolition', ' demo ', ' teardown', ' raze', ' remove structure']):
         return 'Demo'
-    has_new = any(k in t for k in [' new ', 'new construction', 'ground up', 'construct', 'new bldg', 'new building'])
-    has_sf = any(k in t for k in [' single family', 'single-family', ' sfr ', 'detached', 'one-family', 'single family residence'])
+
+    new_signals = [
+        ' new ', 'new construction', 'ground up', 'ground-up', 'construct', 'new bldg',
+        'new building', 'shell only', 'core and shell', 'erect', 'new commercial',
+        'new residential', 'new mixed use', 'new mixed-use'
+    ]
+    has_new = any(k in t for k in new_signals)
+    has_sf = any(k in t for k in [
+        ' single family', 'single-family', ' sfr ', 'detached', 'one-family',
+        'single family residence', 'single-family residence', 'sf residence'
+    ])
     has_mf = any(k in t for k in [
         ' multifamily', 'multi-family', 'multi family', ' apartment', 'apartments', 'townhome',
         'townhouse', 'condo', 'condominium', 'duplex', 'triplex', 'fourplex', 'mixed use', 'mixed-use',
-        'rowhouse', 'live/work', 'stacked flat'
+        'rowhouse', 'live/work', 'stacked flat', 'apartments'
     ])
+
     if has_new and has_sf and not has_mf:
         return 'New SFR'
     if has_new and has_mf:
         return 'New MF'
+    if has_new:
+        return 'Other New'
     return None
 
 
@@ -335,7 +349,7 @@ def build_outputs(rows, diagnostics):
         agg.setdefault(hood, {
             'neighborhood': hood,
             'jurisdictions': set(),
-            'years': {str(y): {'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0} for y in YEARS},
+            'years': {str(y): {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0} for y in YEARS},
         })
         agg[hood]['jurisdictions'].add(row['jurisdiction'])
         bucket = agg[hood]['years'][year]
@@ -346,7 +360,7 @@ def build_outputs(rows, diagnostics):
 
     neighborhood_rows = []
     for hood, item in agg.items():
-        totals = {'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0}
+        totals = {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
         for y in YEARS:
             yr = item['years'][str(y)]
             for k in totals:
@@ -361,10 +375,10 @@ def build_outputs(rows, diagnostics):
 
     annual_series = []
     for y in YEARS:
-        record = {'year': y, 'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0}
+        record = {'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
         for row in neighborhood_rows:
             yr = row['years'][str(y)]
-            for k in ('New SFR', 'New MF', 'Demo', 'Total'):
+            for k in ('New SFR', 'New MF', 'Other New', 'Demo', 'Total'):
                 record[k] += yr[k]
         annual_series.append(record)
 
@@ -378,6 +392,8 @@ def build_outputs(rows, diagnostics):
             'known_neighborhoods': len(known_hoods),
             'new_sfr': sum(r['totals']['New SFR'] for r in neighborhood_rows),
             'new_mf': sum(r['totals']['New MF'] for r in neighborhood_rows),
+            'other_new': sum(r['totals']['Other New'] for r in neighborhood_rows),
+            'total_new_construction': sum(r['totals']['New SFR'] + r['totals']['New MF'] + r['totals']['Other New'] for r in neighborhood_rows),
             'demo': sum(r['totals']['Demo'] for r in neighborhood_rows),
         },
         'annual_series': annual_series,
@@ -385,7 +401,7 @@ def build_outputs(rows, diagnostics):
         'samples': samples[:20],
         'map_points': samples[:24],
         'load_notes': [
-            f"Precomputed refresh generated {len(rows)} target permit rows.",
+            f"Precomputed refresh generated {len(rows)} target permit rows across Demo, New SFR, New MF, and Other New construction.",
             f"Known neighborhoods after refresh: {len(known_hoods)}.",
             f"Seattle kept {diagnostics.get('seattle_rows_kept', 0)} rows across {diagnostics.get('seattle_pages', 0)} pages.",
             f"Bellevue kept {diagnostics.get('bellevue_rows_kept', 0)} rows after scanning {diagnostics.get('bellevue_rows_examined', 0)} CSV rows.",

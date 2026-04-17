@@ -7,7 +7,7 @@ DATA_DIR = BASE_DIR / 'data'
 SUMMARY_PATH = DATA_DIR / 'summary.json'
 META_PATH = DATA_DIR / 'meta.json'
 
-VALID_CATEGORIES = ['New SFR', 'New MF', 'Demo']
+VALID_CATEGORIES = ['New SFR', 'New MF', 'Other New', 'Demo']
 YEARS = [2022, 2023, 2024, 2025, 2026]
 
 app = Flask(__name__)
@@ -41,10 +41,12 @@ def load_summary():
             'known_neighborhoods': 0,
             'new_sfr': 0,
             'new_mf': 0,
+            'other_new': 0,
+            'total_new_construction': 0,
             'demo': 0,
         },
         'annual_series': [{
-            'year': y, 'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0
+            'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0
         } for y in YEARS],
         'neighborhood_rows': [],
         'samples': [],
@@ -64,6 +66,14 @@ def clamp_years(start_year: int, end_year: int):
 
 
 def filter_summary(summary, jurisdiction, category, neighborhood, start_year, end_year):
+    if all(
+        ('Other New' not in row.get('totals', {})) and
+        all('Other New' not in yr for yr in (row.get('years') or {}).values())
+        for row in summary.get('neighborhood_rows', [])
+    ):
+        notes = list(summary.get('load_notes', []))
+        notes.append('Current precomputed data was generated before "Other New" was added. Run refresh_data.py locally to capture all new construction.')
+        summary['load_notes'] = notes
     start_year, end_year = clamp_years(start_year, end_year)
     years = [y for y in YEARS if start_year <= y <= end_year]
     year_set = set(str(y) for y in years)
@@ -85,21 +95,22 @@ def filter_summary(summary, jurisdiction, category, neighborhood, start_year, en
         if neighborhood != 'all' and row.get('neighborhood') != neighborhood:
             continue
         years_obj = {}
-        totals = {'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0}
+        totals = {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
         for y in years:
-            src = (row.get('years') or {}).get(str(y), {'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0})
+            src = (row.get('years') or {}).get(str(y), {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0})
             if category == 'all':
                 item = {
                     'New SFR': int(src.get('New SFR', 0)),
                     'New MF': int(src.get('New MF', 0)),
+                    'Other New': int(src.get('Other New', 0)),
                     'Demo': int(src.get('Demo', 0)),
                 }
             else:
-                item = {'New SFR': 0, 'New MF': 0, 'Demo': 0}
+                item = {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0}
                 item[category] = int(src.get(category, 0))
-            item['Total'] = item['New SFR'] + item['New MF'] + item['Demo']
+            item['Total'] = item['New SFR'] + item['New MF'] + item['Other New'] + item['Demo']
             years_obj[str(y)] = item
-            for k in ('New SFR', 'New MF', 'Demo', 'Total'):
+            for k in ('New SFR', 'New MF', 'Other New', 'Demo', 'Total'):
                 totals[k] += item[k]
         if totals['Total'] == 0:
             continue
@@ -114,10 +125,10 @@ def filter_summary(summary, jurisdiction, category, neighborhood, start_year, en
 
     annual_series = []
     for y in years:
-        record = {'year': y, 'New SFR': 0, 'New MF': 0, 'Demo': 0, 'Total': 0}
+        record = {'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
         for row in neighborhood_rows:
             item = row['years'][str(y)]
-            for k in ('New SFR', 'New MF', 'Demo', 'Total'):
+            for k in ('New SFR', 'New MF', 'Other New', 'Demo', 'Total'):
                 record[k] += item[k]
         annual_series.append(record)
 
@@ -128,6 +139,8 @@ def filter_summary(summary, jurisdiction, category, neighborhood, start_year, en
         'known_neighborhoods': len(neighborhood_rows),
         'new_sfr': sum(r['totals']['New SFR'] for r in neighborhood_rows),
         'new_mf': sum(r['totals']['New MF'] for r in neighborhood_rows),
+        'other_new': sum(r['totals']['Other New'] for r in neighborhood_rows),
+        'total_new_construction': sum(r['totals']['New SFR'] + r['totals']['New MF'] + r['totals']['Other New'] for r in neighborhood_rows),
         'demo': sum(r['totals']['Demo'] for r in neighborhood_rows),
     }
 
