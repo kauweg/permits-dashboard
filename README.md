@@ -1,19 +1,29 @@
-# Permit Dashboard v10
+# Permit Dashboard v12
 
-Summary-first Flask app for Seattle + Bellevue permit trends.
+This version is built to start instantly on Render free tier.
 
-## Render
-- Create a **Web Service** from this repo
-- Build: `pip install -r requirements.txt`
-- Start: `gunicorn app:app --workers 1 --threads 1 --timeout 120 --bind 0.0.0.0:$PORT`
+## What changed
+- The web app serves precomputed JSON from `data/summary.json` and `data/meta.json`.
+- Render no longer tries to fetch Seattle and Bellevue at startup.
+- To refresh live data, run `python refresh_data.py` locally, then commit the updated JSON files.
 
-## What it does
-- Limits scope to **2022–2026**
-- Targets only **New SFR**, **New MF**, and **Demo**
-- Keeps the UI light for executive review
-- Supports neighborhood filtering, search, annual trends, and neighborhood drilldown
+## Deploy on Render
+- Create or keep a Web Service
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn app:app --workers 1 --threads 1 --timeout 60 --bind 0.0.0.0:$PORT`
+
+## Refresh live data
+1. Run `python refresh_data.py`
+2. Commit `data/summary.json` and `data/meta.json`
+3. Push to GitHub
+4. Let Render redeploy
 
 ## Notes
-- Bellevue is loaded from the Bellevue permits download candidates already wired in `app.py`.
-- Seattle neighborhoods are assigned from the official Seattle neighborhood feature layer.
-- If a source fails, the app surfaces that in the load notes instead of silently pretending nothing happened.
+- The bundled JSON is a lightweight starter dataset so the UI works immediately.
+- The live refresh script is where Seattle and Bellevue pulls happen.
+
+
+## v13 refresh notes
+- Run `python refresh_data.py` locally to rebuild `data/summary.json` and `data/meta.json`.
+- If Bellevue changes its CSV item URL, set `BELLEVUE_PERMITS_URL` before running the script.
+- Check `data/refresh_debug.json` after each refresh; it records Seattle page counts and Bellevue columns seen so you can diagnose field-name drift quickly.
