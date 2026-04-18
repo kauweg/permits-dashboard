@@ -75,8 +75,9 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Annual trend</h2>
-          <div class="muted">Counts by year</div>
+          <div class="muted">Counts by year by permit type</div>
         </div>
+        <div id="annualLegend" class="chart-legend"></div>
         <canvas id="annualChart" height="240"></canvas>
       </div>
       <div class="panel">
@@ -84,6 +85,7 @@
           <h2>Neighborhood drilldown</h2>
           <div id="drilldownTitle" class="muted">Select a neighborhood row below</div>
         </div>
+        <div id="drilldownLegend" class="chart-legend"></div>
         <canvas id="drilldownChart" height="240"></canvas>
       </div>
     </section>
@@ -97,7 +99,7 @@
         <div class="table-wrap tall">
           <table id="neighborhoodTable">
             <thead>
-              <tr><th>Neighborhood</th><th>Total</th><th>New SFR</th><th>New MF</th><th>Demo</th></tr>
+              <tr><th>Neighborhood</th><th>Total</th><th>New SFR</th><th>New MF</th><th>Other New</th><th>Demo</th></tr>
             </thead>
             <tbody></tbody>
           </table>
