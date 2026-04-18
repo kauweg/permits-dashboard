@@ -1,3 +1,4 @@
+
 import json
 from pathlib import Path
 from flask import Flask, jsonify, render_template, request
@@ -9,6 +10,7 @@ META_PATH = DATA_DIR / 'meta.json'
 
 VALID_CATEGORIES = ['New SFR', 'New MF', 'Other New', 'Demo']
 YEARS = [2022, 2023, 2024, 2025, 2026]
+CATEGORY_KEYS = ['New SFR', 'New MF', 'Other New', 'Demo']
 
 app = Flask(__name__)
 
@@ -19,6 +21,61 @@ def load_json(path: Path, default):
             return json.load(f)
     except Exception:
         return default
+
+
+def zero_bucket():
+    return {**{k: 0 for k in CATEGORY_KEYS}, 'All New': 0, 'Total': 0}
+
+
+def enrich_summary(summary: dict):
+    annual = []
+    for row in summary.get('annual_series', []):
+        r = {'year': int(row.get('year', 0))}
+        for k in CATEGORY_KEYS:
+            r[k] = int(row.get(k, 0))
+        r['All New'] = r['New SFR'] + r['New MF'] + r['Other New']
+        r['Total'] = r['All New'] + r['Demo']
+        annual.append(r)
+
+    nrows = []
+    for row in summary.get('neighborhood_rows', []):
+        years = {}
+        totals = zero_bucket()
+        for y in YEARS:
+            src = (row.get('years') or {}).get(str(y), {})
+            item = zero_bucket()
+            for k in CATEGORY_KEYS:
+                item[k] = int(src.get(k, 0))
+            item['All New'] = item['New SFR'] + item['New MF'] + item['Other New']
+            item['Total'] = item['All New'] + item['Demo']
+            years[str(y)] = item
+            for k in item:
+                totals[k] += item[k]
+        nrows.append({
+            'neighborhood': row.get('neighborhood', 'Unknown'),
+            'jurisdictions': row.get('jurisdictions', []),
+            'years': years,
+            'totals': totals,
+        })
+    nrows.sort(key=lambda r: (-r['totals']['Total'], r['neighborhood']))
+
+    cards = summary.get('cards', {})
+    cards = {
+        'total_permits': int(cards.get('total_permits', 0) or sum(r['totals']['Total'] for r in nrows)),
+        'seattle_permits': int(cards.get('seattle_permits', 0) or sum(r['totals']['Total'] for r in nrows if 'Seattle' in r.get('jurisdictions', []))),
+        'bellevue_permits': int(cards.get('bellevue_permits', 0) or sum(r['totals']['Total'] for r in nrows if 'Bellevue' in r.get('jurisdictions', []))),
+        'known_neighborhoods': int(cards.get('known_neighborhoods', 0) or len([r for r in nrows if r['neighborhood'] != 'Unknown'])),
+        'new_sfr': int(cards.get('new_sfr', 0) or sum(r['totals']['New SFR'] for r in nrows)),
+        'new_mf': int(cards.get('new_mf', 0) or sum(r['totals']['New MF'] for r in nrows)),
+        'other_new': int(cards.get('other_new', 0) or sum(r['totals']['Other New'] for r in nrows)),
+        'all_new': int(cards.get('all_new', 0) or sum(r['totals']['All New'] for r in nrows)),
+        'demo': int(cards.get('demo', 0) or sum(r['totals']['Demo'] for r in nrows)),
+    }
+
+    summary['annual_series'] = annual
+    summary['neighborhood_rows'] = nrows
+    summary['cards'] = cards
+    return summary
 
 
 def load_meta():
@@ -42,11 +99,11 @@ def load_summary():
             'new_sfr': 0,
             'new_mf': 0,
             'other_new': 0,
-            'total_new_construction': 0,
+            'all_new': 0,
             'demo': 0,
         },
         'annual_series': [{
-            'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0
+            'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'All New': 0, 'Total': 0
         } for y in YEARS],
         'neighborhood_rows': [],
         'samples': [],
@@ -54,27 +111,10 @@ def load_summary():
         'load_notes': ['No precomputed data found.'],
         'load_errors': []
     }
-    return load_json(SUMMARY_PATH, default)
-
-
-def clamp_years(start_year: int, end_year: int):
-    start_year = max(YEARS[0], min(YEARS[-1], start_year))
-    end_year = max(YEARS[0], min(YEARS[-1], end_year))
-    if start_year > end_year:
-        start_year, end_year = end_year, start_year
-    return start_year, end_year
+    return enrich_summary(load_json(SUMMARY_PATH, default))
 
 
 def filter_summary(summary, jurisdiction, category, neighborhood, start_year, end_year):
-    if all(
-        ('Other New' not in row.get('totals', {})) and
-        all('Other New' not in yr for yr in (row.get('years') or {}).values())
-        for row in summary.get('neighborhood_rows', [])
-    ):
-        notes = list(summary.get('load_notes', []))
-        notes.append('Current precomputed data was generated before "Other New" was added. Run refresh_data.py locally to capture all new construction.')
-        summary['load_notes'] = notes
-    start_year, end_year = clamp_years(start_year, end_year)
     years = [y for y in YEARS if start_year <= y <= end_year]
     year_set = set(str(y) for y in years)
 
@@ -95,22 +135,18 @@ def filter_summary(summary, jurisdiction, category, neighborhood, start_year, en
         if neighborhood != 'all' and row.get('neighborhood') != neighborhood:
             continue
         years_obj = {}
-        totals = {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
+        totals = zero_bucket()
         for y in years:
-            src = (row.get('years') or {}).get(str(y), {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0})
+            src = (row.get('years') or {}).get(str(y), zero_bucket())
             if category == 'all':
-                item = {
-                    'New SFR': int(src.get('New SFR', 0)),
-                    'New MF': int(src.get('New MF', 0)),
-                    'Other New': int(src.get('Other New', 0)),
-                    'Demo': int(src.get('Demo', 0)),
-                }
+                item = {k: int(src.get(k, 0)) for k in CATEGORY_KEYS}
             else:
-                item = {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0}
+                item = {k: 0 for k in CATEGORY_KEYS}
                 item[category] = int(src.get(category, 0))
-            item['Total'] = item['New SFR'] + item['New MF'] + item['Other New'] + item['Demo']
+            item['All New'] = item['New SFR'] + item['New MF'] + item['Other New']
+            item['Total'] = item['All New'] + item['Demo']
             years_obj[str(y)] = item
-            for k in ('New SFR', 'New MF', 'Other New', 'Demo', 'Total'):
+            for k in totals:
                 totals[k] += item[k]
         if totals['Total'] == 0:
             continue
@@ -121,14 +157,14 @@ def filter_summary(summary, jurisdiction, category, neighborhood, start_year, en
             'totals': totals,
         })
 
-    neighborhood_rows.sort(key=lambda r: (-r['totals']['Total'], r['neighborhood'] or ''))
+    neighborhood_rows.sort(key=lambda r: (-r['totals']['Total'], r['neighborhood']))
 
     annual_series = []
     for y in years:
-        record = {'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
+        record = {'year': y, **zero_bucket()}
         for row in neighborhood_rows:
             item = row['years'][str(y)]
-            for k in ('New SFR', 'New MF', 'Other New', 'Demo', 'Total'):
+            for k in zero_bucket():
                 record[k] += item[k]
         annual_series.append(record)
 
@@ -140,12 +176,12 @@ def filter_summary(summary, jurisdiction, category, neighborhood, start_year, en
         'new_sfr': sum(r['totals']['New SFR'] for r in neighborhood_rows),
         'new_mf': sum(r['totals']['New MF'] for r in neighborhood_rows),
         'other_new': sum(r['totals']['Other New'] for r in neighborhood_rows),
-        'total_new_construction': sum(r['totals']['New SFR'] + r['totals']['New MF'] + r['totals']['Other New'] for r in neighborhood_rows),
+        'all_new': sum(r['totals']['All New'] for r in neighborhood_rows),
         'demo': sum(r['totals']['Demo'] for r in neighborhood_rows),
     }
 
     samples = [r for r in summary.get('samples', []) if keep_sample(r)][:20]
-    map_points = [r for r in summary.get('map_points', []) if keep_sample(r)][:24]
+    map_points = [r for r in summary.get('map_points', []) if keep_sample(r)][:100]
 
     return {
         'cards': cards,
@@ -175,14 +211,8 @@ def api_summary():
     jurisdiction = request.args.get('jurisdiction', 'all')
     category = request.args.get('category', 'all')
     neighborhood = request.args.get('neighborhood', 'all')
-    try:
-        start_year = int(request.args.get('start_year', YEARS[0]))
-    except Exception:
-        start_year = YEARS[0]
-    try:
-        end_year = int(request.args.get('end_year', YEARS[-1]))
-    except Exception:
-        end_year = YEARS[-1]
+    start_year = int(request.args.get('start_year', YEARS[0]))
+    end_year = int(request.args.get('end_year', YEARS[-1]))
     if category not in {'all', *VALID_CATEGORIES}:
         category = 'all'
     if jurisdiction not in {'all', 'Seattle', 'Bellevue'}:
