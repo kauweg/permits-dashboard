@@ -8,7 +8,8 @@
     "new_mf": 45,
     "demo": 18,
     "other_new": 0,
-    "all_new": 84
+    "all_new": 84,
+    "unknown_neighborhoods": 0
   },
   "annual_series": [
     {
@@ -108,10 +109,10 @@
       "totals": {
         "New SFR": 4,
         "New MF": 23,
-        "Other New": 0,
         "Demo": 5,
-        "All New": 27,
-        "Total": 32
+        "Total": 32,
+        "Other New": 0,
+        "All New": 27
       }
     },
     {
@@ -164,10 +165,10 @@
       "totals": {
         "New SFR": 11,
         "New MF": 5,
-        "Other New": 0,
         "Demo": 5,
-        "All New": 16,
-        "Total": 21
+        "Total": 21,
+        "Other New": 0,
+        "All New": 16
       }
     },
     {
@@ -220,10 +221,10 @@
       "totals": {
         "New SFR": 0,
         "New MF": 11,
-        "Other New": 0,
         "Demo": 3,
-        "All New": 11,
-        "Total": 14
+        "Total": 14,
+        "Other New": 0,
+        "All New": 11
       }
     },
     {
@@ -276,10 +277,10 @@
       "totals": {
         "New SFR": 6,
         "New MF": 5,
-        "Other New": 0,
         "Demo": 3,
-        "All New": 11,
-        "Total": 14
+        "Total": 14,
+        "Other New": 0,
+        "All New": 11
       }
     },
     {
@@ -332,10 +333,10 @@
       "totals": {
         "New SFR": 5,
         "New MF": 5,
-        "Other New": 0,
         "Demo": 2,
-        "All New": 10,
-        "Total": 12
+        "Total": 12,
+        "Other New": 0,
+        "All New": 10
       }
     },
     {
@@ -388,10 +389,10 @@
       "totals": {
         "New SFR": 5,
         "New MF": 0,
-        "Other New": 0,
         "Demo": 2,
-        "All New": 5,
-        "Total": 7
+        "Total": 7,
+        "Other New": 0,
+        "All New": 5
       }
     },
     {
@@ -444,10 +445,10 @@
       "totals": {
         "New SFR": 10,
         "New MF": 0,
-        "Other New": 0,
         "Demo": 1,
-        "All New": 10,
-        "Total": 11
+        "Total": 11,
+        "Other New": 0,
+        "All New": 10
       }
     }
   ],
@@ -459,8 +460,8 @@
       "address": "5411 24th Ave NW",
       "issue_date": "2026-02-12",
       "intake_date": "2025-10-08",
-      "latitude": 47.6686,
-      "longitude": -122.386
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Seattle",
@@ -469,8 +470,8 @@
       "address": "112 Harvard Ave E",
       "issue_date": "2026-01-21",
       "intake_date": "2025-08-03",
-      "latitude": 47.623,
-      "longitude": -122.319
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Bellevue",
@@ -479,8 +480,8 @@
       "address": "10301 Main St",
       "issue_date": "2026-03-10",
       "intake_date": "2025-09-14",
-      "latitude": 47.6155,
-      "longitude": -122.2012
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Bellevue",
@@ -489,8 +490,8 @@
       "address": "1200 124th Ave NE",
       "issue_date": "2025-11-05",
       "intake_date": "2025-07-30",
-      "latitude": 47.6108,
-      "longitude": -122.1718
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Seattle",
@@ -499,8 +500,8 @@
       "address": "801 Queen Anne Ave N",
       "issue_date": "2025-10-19",
       "intake_date": "2025-06-12",
-      "latitude": 47.637,
-      "longitude": -122.356
+      "longitude": null,
+      "latitude": null
     }
   ],
   "map_points": [
@@ -511,8 +512,8 @@
       "address": "5411 24th Ave NW",
       "issue_date": "2026-02-12",
       "intake_date": "2025-10-08",
-      "latitude": 47.6686,
-      "longitude": -122.386
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Seattle",
@@ -521,8 +522,8 @@
       "address": "112 Harvard Ave E",
       "issue_date": "2026-01-21",
       "intake_date": "2025-08-03",
-      "latitude": 47.623,
-      "longitude": -122.319
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Bellevue",
@@ -531,8 +532,8 @@
       "address": "10301 Main St",
       "issue_date": "2026-03-10",
       "intake_date": "2025-09-14",
-      "latitude": 47.6155,
-      "longitude": -122.2012
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Bellevue",
@@ -541,8 +542,8 @@
       "address": "1200 124th Ave NE",
       "issue_date": "2025-11-05",
       "intake_date": "2025-07-30",
-      "latitude": 47.6108,
-      "longitude": -122.1718
+      "longitude": null,
+      "latitude": null
     },
     {
       "jurisdiction": "Seattle",
@@ -551,13 +552,14 @@
       "address": "801 Queen Anne Ave N",
       "issue_date": "2025-10-19",
       "intake_date": "2025-06-12",
-      "latitude": 47.637,
-      "longitude": -122.356
+      "longitude": null,
+      "latitude": null
     }
   ],
   "load_notes": [
     "Serving precomputed starter dataset for instant startup.",
-    "Run refresh_data.py locally to rebuild from live Seattle and Bellevue sources."
+    "Run refresh_data.py locally to rebuild from live Seattle and Bellevue sources.",
+    "Starter JSON still reflects old narrow categories until refresh_data.py is run."
   ],
   "load_errors": []
 }
