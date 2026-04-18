@@ -63,11 +63,31 @@ async function loadSummary() {
   renderMapList();
 }
 
+
+function renderLegend(targetId, items) {
+  const el = byId(targetId);
+  if (!el) return;
+  el.innerHTML = items.map(item => `
+    <span class="legend-item">
+      <span class="legend-swatch" style="background:${item.color}"></span>
+      <span>${escapeHtml(item.label)}</span>
+    </span>
+  `).join('');
+}
+
+const SERIES_META = [
+  {key: 'New SFR', label: 'New SFR', color: '#6d8fb3'},
+  {key: 'New MF', label: 'New MF', color: '#9cb4c9'},
+  {key: 'Other New', label: 'Other New', color: '#8fa48f'},
+  {key: 'Demo', label: 'Demo', color: '#d8a45b'},
+];
+
+
 function renderCards() {
   const c = state.summary.cards || {};
   const cards = [
     ['Total permits', c.total_permits], ['Seattle', c.seattle_permits], ['Bellevue', c.bellevue_permits],
-    ['Known neighborhoods', c.known_neighborhoods], ['New SFR', c.new_sfr], ['New MF', c.new_mf], ['Demo', c.demo],
+    ['Known neighborhoods', c.known_neighborhoods], ['All new construction', c.total_new_construction], ['New SFR', c.new_sfr], ['New MF', c.new_mf], ['Other New', c.other_new], ['Demo', c.demo],
   ];
   byId('cards').innerHTML = cards.map(([label, value]) => `<article class="card"><div class="card-label">${escapeHtml(label)}</div><div class="card-value">${formatNumber(value)}</div></article>`).join('');
 }
@@ -85,7 +105,7 @@ function drawGroupedBars(canvas, labels, series) {
   const plotW = Math.max(1, cw - margin.left - margin.right);
   const plotH = Math.max(1, ch - margin.top - margin.bottom);
   const maxVal = Math.max(1, ...series.flatMap(s => s.values || []));
-  const colors = ['#6d8fb3', '#9cb4c9', '#d8a45b'];
+  const colors = ['#6d8fb3', '#9cb4c9', '#8fa48f', '#d8a45b'];
 
   ctx.strokeStyle = '#d6dee8';
   ctx.fillStyle = '#6b7785';
@@ -126,9 +146,11 @@ function drawGroupedBars(canvas, labels, series) {
 
 function renderAnnualChart() {
   const data = state.summary.annual_series || [];
+  renderLegend('annualLegend', SERIES_META);
   drawGroupedBars(byId('annualChart'), data.map(r => r.year), [
     {name: 'New SFR', values: data.map(r => r['New SFR'])},
     {name: 'New MF', values: data.map(r => r['New MF'])},
+    {name: 'Other New', values: data.map(r => r['Other New'])},
     {name: 'Demo', values: data.map(r => r['Demo'])},
   ]);
 }
@@ -144,9 +166,11 @@ function renderDrilldownChart() {
     return;
   }
   const labels = Object.keys(current.years);
+  renderLegend('drilldownLegend', SERIES_META);
   drawGroupedBars(byId('drilldownChart'), labels, [
     {name: 'New SFR', values: labels.map(y => current.years[y]['New SFR'])},
     {name: 'New MF', values: labels.map(y => current.years[y]['New MF'])},
+    {name: 'Other New', values: labels.map(y => current.years[y]['Other New'])},
     {name: 'Demo', values: labels.map(y => current.years[y]['Demo'])},
   ]);
 }
@@ -160,6 +184,7 @@ function renderNeighborhoodTable() {
       <td>${formatNumber(r.totals.Total)}</td>
       <td>${formatNumber(r.totals['New SFR'])}</td>
       <td>${formatNumber(r.totals['New MF'])}</td>
+      <td>${formatNumber(r.totals['Other New'])}</td>
       <td>${formatNumber(r.totals['Demo'])}</td>
     </tr>`).join('');
   tbody.querySelectorAll('tr').forEach((tr) => tr.addEventListener('click', async () => {
