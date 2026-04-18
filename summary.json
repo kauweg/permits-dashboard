@@ -1,0 +1,563 @@
+{
+  "cards": {
+    "total_permits": 102,
+    "seattle_permits": 62,
+    "bellevue_permits": 40,
+    "known_neighborhoods": 7,
+    "new_sfr": 39,
+    "new_mf": 45,
+    "demo": 18,
+    "other_new": 0,
+    "all_new": 84
+  },
+  "annual_series": [
+    {
+      "year": 2022,
+      "New SFR": 7,
+      "New MF": 8,
+      "Demo": 3,
+      "Total": 18,
+      "Other New": 0,
+      "All New": 15
+    },
+    {
+      "year": 2023,
+      "New SFR": 8,
+      "New MF": 9,
+      "Demo": 3,
+      "Total": 20,
+      "Other New": 0,
+      "All New": 17
+    },
+    {
+      "year": 2024,
+      "New SFR": 8,
+      "New MF": 11,
+      "Demo": 4,
+      "Total": 23,
+      "Other New": 0,
+      "All New": 19
+    },
+    {
+      "year": 2025,
+      "New SFR": 9,
+      "New MF": 10,
+      "Demo": 4,
+      "Total": 23,
+      "Other New": 0,
+      "All New": 19
+    },
+    {
+      "year": 2026,
+      "New SFR": 7,
+      "New MF": 7,
+      "Demo": 4,
+      "Total": 18,
+      "Other New": 0,
+      "All New": 14
+    }
+  ],
+  "neighborhood_rows": [
+    {
+      "neighborhood": "Bellevue Downtown",
+      "jurisdictions": [
+        "Bellevue"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 1,
+          "New MF": 4,
+          "Demo": 1,
+          "Total": 6,
+          "Other New": 0,
+          "All New": 5
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 5,
+          "Demo": 1,
+          "Total": 7,
+          "Other New": 0,
+          "All New": 6
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 6,
+          "Demo": 1,
+          "Total": 8,
+          "Other New": 0,
+          "All New": 7
+        },
+        "2025": {
+          "New SFR": 1,
+          "New MF": 5,
+          "Demo": 1,
+          "Total": 7,
+          "Other New": 0,
+          "All New": 6
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 3,
+          "Demo": 1,
+          "Total": 4,
+          "Other New": 0,
+          "All New": 3
+        }
+      },
+      "totals": {
+        "New SFR": 4,
+        "New MF": 23,
+        "Other New": 0,
+        "Demo": 5,
+        "All New": 27,
+        "Total": 32
+      }
+    },
+    {
+      "neighborhood": "Ballard",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 2,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 4,
+          "Other New": 0,
+          "All New": 3
+        },
+        "2023": {
+          "New SFR": 2,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 4,
+          "Other New": 0,
+          "All New": 3
+        },
+        "2024": {
+          "New SFR": 2,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 4,
+          "Other New": 0,
+          "All New": 3
+        },
+        "2025": {
+          "New SFR": 3,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 5,
+          "Other New": 0,
+          "All New": 4
+        },
+        "2026": {
+          "New SFR": 2,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 4,
+          "Other New": 0,
+          "All New": 3
+        }
+      },
+      "totals": {
+        "New SFR": 11,
+        "New MF": 5,
+        "Other New": 0,
+        "Demo": 5,
+        "All New": 16,
+        "Total": 21
+      }
+    },
+    {
+      "neighborhood": "Capitol Hill",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 2,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 2,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 3,
+          "Demo": 1,
+          "Total": 4,
+          "Other New": 0,
+          "All New": 3
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 2,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 2,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        }
+      },
+      "totals": {
+        "New SFR": 0,
+        "New MF": 11,
+        "Other New": 0,
+        "Demo": 3,
+        "All New": 11,
+        "Total": 14
+      }
+    },
+    {
+      "neighborhood": "Queen Anne",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2023": {
+          "New SFR": 2,
+          "New MF": 1,
+          "Demo": 0,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 3
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2025": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2026": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        }
+      },
+      "totals": {
+        "New SFR": 6,
+        "New MF": 5,
+        "Other New": 0,
+        "Demo": 3,
+        "All New": 11,
+        "Total": 14
+      }
+    },
+    {
+      "neighborhood": "Wilburton",
+      "jurisdictions": [
+        "Bellevue"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2025": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2026": {
+          "New SFR": 1,
+          "New MF": 1,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        }
+      },
+      "totals": {
+        "New SFR": 5,
+        "New MF": 5,
+        "Other New": 0,
+        "Demo": 2,
+        "All New": 10,
+        "Total": 12
+      }
+    },
+    {
+      "neighborhood": "Eastgate",
+      "jurisdictions": [
+        "Bellevue"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 1,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 1,
+          "Other New": 0,
+          "All New": 1
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 0,
+          "Demo": 1,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 1
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 1,
+          "Other New": 0,
+          "All New": 1
+        },
+        "2025": {
+          "New SFR": 1,
+          "New MF": 0,
+          "Demo": 1,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 1
+        },
+        "2026": {
+          "New SFR": 1,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 1,
+          "Other New": 0,
+          "All New": 1
+        }
+      },
+      "totals": {
+        "New SFR": 5,
+        "New MF": 0,
+        "Other New": 0,
+        "Demo": 2,
+        "All New": 5,
+        "Total": 7
+      }
+    },
+    {
+      "neighborhood": "Wallingford",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 2,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2023": {
+          "New SFR": 2,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2024": {
+          "New SFR": 2,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2025": {
+          "New SFR": 2,
+          "New MF": 0,
+          "Demo": 0,
+          "Total": 2,
+          "Other New": 0,
+          "All New": 2
+        },
+        "2026": {
+          "New SFR": 2,
+          "New MF": 0,
+          "Demo": 1,
+          "Total": 3,
+          "Other New": 0,
+          "All New": 2
+        }
+      },
+      "totals": {
+        "New SFR": 10,
+        "New MF": 0,
+        "Other New": 0,
+        "Demo": 1,
+        "All New": 10,
+        "Total": 11
+      }
+    }
+  ],
+  "samples": [
+    {
+      "jurisdiction": "Seattle",
+      "category": "New SFR",
+      "neighborhood": "Ballard",
+      "address": "5411 24th Ave NW",
+      "issue_date": "2026-02-12",
+      "intake_date": "2025-10-08",
+      "latitude": 47.6686,
+      "longitude": -122.386
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Capitol Hill",
+      "address": "112 Harvard Ave E",
+      "issue_date": "2026-01-21",
+      "intake_date": "2025-08-03",
+      "latitude": 47.623,
+      "longitude": -122.319
+    },
+    {
+      "jurisdiction": "Bellevue",
+      "category": "New MF",
+      "neighborhood": "Bellevue Downtown",
+      "address": "10301 Main St",
+      "issue_date": "2026-03-10",
+      "intake_date": "2025-09-14",
+      "latitude": 47.6155,
+      "longitude": -122.2012
+    },
+    {
+      "jurisdiction": "Bellevue",
+      "category": "Demo",
+      "neighborhood": "Wilburton",
+      "address": "1200 124th Ave NE",
+      "issue_date": "2025-11-05",
+      "intake_date": "2025-07-30",
+      "latitude": 47.6108,
+      "longitude": -122.1718
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Queen Anne",
+      "address": "801 Queen Anne Ave N",
+      "issue_date": "2025-10-19",
+      "intake_date": "2025-06-12",
+      "latitude": 47.637,
+      "longitude": -122.356
+    }
+  ],
+  "map_points": [
+    {
+      "jurisdiction": "Seattle",
+      "category": "New SFR",
+      "neighborhood": "Ballard",
+      "address": "5411 24th Ave NW",
+      "issue_date": "2026-02-12",
+      "intake_date": "2025-10-08",
+      "latitude": 47.6686,
+      "longitude": -122.386
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Capitol Hill",
+      "address": "112 Harvard Ave E",
+      "issue_date": "2026-01-21",
+      "intake_date": "2025-08-03",
+      "latitude": 47.623,
+      "longitude": -122.319
+    },
+    {
+      "jurisdiction": "Bellevue",
+      "category": "New MF",
+      "neighborhood": "Bellevue Downtown",
+      "address": "10301 Main St",
+      "issue_date": "2026-03-10",
+      "intake_date": "2025-09-14",
+      "latitude": 47.6155,
+      "longitude": -122.2012
+    },
+    {
+      "jurisdiction": "Bellevue",
+      "category": "Demo",
+      "neighborhood": "Wilburton",
+      "address": "1200 124th Ave NE",
+      "issue_date": "2025-11-05",
+      "intake_date": "2025-07-30",
+      "latitude": 47.6108,
+      "longitude": -122.1718
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Queen Anne",
+      "address": "801 Queen Anne Ave N",
+      "issue_date": "2025-10-19",
+      "intake_date": "2025-06-12",
+      "latitude": 47.637,
+      "longitude": -122.356
+    }
+  ],
+  "load_notes": [
+    "Serving precomputed starter dataset for instant startup.",
+    "Run refresh_data.py locally to rebuild from live Seattle and Bellevue sources."
+  ],
+  "load_errors": []
+}
