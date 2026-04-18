@@ -44,3 +44,7 @@ Then commit and push:
 ## Broader category coverage
 - The dashboard now shows Demo, New SFR, New MF, and Other New.
 - To update counts for the broader all-new-construction bucket, run `python refresh_data.py` locally and commit the refreshed `data/*.json` files.
+
+
+## Important
+The starter JSON in this package includes the new legend/card structure, but `Other New` stays at 0 until you run `python refresh_data.py` locally and commit the refreshed `data/*.json` files.

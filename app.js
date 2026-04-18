@@ -1,253 +1,267 @@
-:root {
-  --bg: #eef3f8;
-  --panel: #ffffff;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --line: #d8e1ec;
-  --blue: #d8e8ff;
-  --blue-strong: #316fdd;
-  --green: #d8f3ea;
-  --green-strong: #0f766e;
-  --red: #fde2e1;
-  --red-strong: #b42318;
-  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+const state = { meta: null, summary: null, selectedNeighborhood: 'all' };
+const byId = (id) => document.getElementById(id);
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
-* { box-sizing: border-box; }
-body {
-  margin: 0;
-  font-family: Inter, system-ui, sans-serif;
-  background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
-  color: var(--ink);
-}
-.shell {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 24px;
-}
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 18px;
-}
-.topbar h1 { margin: 6px 0 8px; font-size: 34px; }
-.eyebrow {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--blue);
-  color: var(--blue-strong);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-.lede { margin: 0; color: var(--muted); max-width: 760px; }
-.topbar-right { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.stamp { color: var(--muted); font-size: 13px; }
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  box-shadow: var(--shadow);
-  padding: 18px;
-}
-.warn-box {
-  margin-bottom: 16px;
-  padding: 14px 18px;
-  border-radius: 18px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-}
-.warn-box ul { margin: 8px 0 0 18px; color: #9a3412; }
-.filters { margin-bottom: 16px; }
-.filter-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 12px;
-}
-label span {
-  display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-select, input {
-  width: 100%;
-  padding: 11px 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
-  font: inherit;
-}
-.search-wrap { grid-column: span 2; }
-.btn {
-  border: 0;
-  border-radius: 12px;
-  padding: 12px 16px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.btn-primary { background: var(--blue-strong); color: #fff; }
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.kpi-card { min-height: 142px; }
-.kpi-label { color: var(--muted); font-size: 13px; font-weight: 700; text-transform: uppercase; }
-.kpi-value { font-size: 34px; font-weight: 800; margin-top: 14px; }
-.kpi-sub { color: var(--muted); margin-top: 8px; }
-.two-col {
-  display: grid;
-  grid-template-columns: 1.1fr .9fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.panel-header h2 { margin: 0; font-size: 20px; }
-.muted { color: var(--muted); font-size: 13px; }
-.pill {
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: var(--blue);
-  color: var(--blue-strong);
-  font-size: 12px;
-  font-weight: 700;
-}
-.chart-note, .empty-note { color: var(--muted); font-size: 13px; }
-.trend-chart { min-height: 250px; }
-.trend-grid {
-  height: 230px;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  align-items: end;
-  gap: 14px;
-  padding-top: 12px;
-}
-.trend-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.trend-value { font-size: 12px; color: var(--muted); font-weight: 700; }
-.trend-stack {
-  width: 100%;
-  max-width: 120px;
-  height: 180px;
-  display: flex;
-  flex-direction: column-reverse;
-  justify-content: flex-start;
-  border-radius: 18px 18px 8px 8px;
-  overflow: hidden;
-  background: #edf2f7;
-  border: 1px solid var(--line);
-}
-.trend-segment { width: 100%; }
-.trend-segment.sf { background: var(--blue-strong); }
-.trend-segment.mf { background: var(--green-strong); }
-.trend-segment.demo { background: var(--red-strong); }
-.trend-year { font-weight: 700; font-size: 13px; }
-.stack-bars { display: grid; gap: 12px; }
-.bar-row { display: grid; grid-template-columns: 160px 1fr 80px; gap: 12px; align-items: center; }
-.bar-track {
-  position: relative;
-  width: 100%;
-  height: 14px;
-  border-radius: 999px;
-  background: #edf2f7;
-  overflow: hidden;
-}
-.bar-fill { height: 100%; border-radius: 999px; }
-.bar-row.sf .bar-fill { background: var(--blue-strong); }
-.bar-row.mf .bar-fill { background: var(--green-strong); }
-.bar-row.demo .bar-fill { background: var(--red-strong); }
-.map-panel { margin-bottom: 16px; }
-#map { height: 430px; border-radius: 18px; overflow: hidden; }
-.table-panel { padding-bottom: 6px; }
-.table-wrap { overflow: auto; }
-.compact-wrap { max-height: 360px; }
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 980px;
-}
-.table.compact, .annual-table { min-width: 0; }
-.table th, .table td {
-  text-align: left;
-  padding: 10px 10px;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-  vertical-align: top;
-}
-.table thead th {
-  position: sticky;
-  top: 0;
-  background: #f8fbff;
-  z-index: 1;
-}
-.annual-table th, .annual-table td { text-align: right; }
-.annual-table th:first-child, .annual-table td:first-child { text-align: left; }
-.badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 12px;
-}
-.badge.sf { background: var(--blue); color: var(--blue-strong); }
-.badge.mf { background: var(--green); color: var(--green-strong); }
-.badge.demo { background: var(--red); color: var(--red-strong); }
-@media (max-width: 1180px) {
-  .filter-grid, .kpi-grid, .two-col { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .search-wrap { grid-column: span 2; }
-}
-@media (max-width: 760px) {
-  .shell { padding: 14px; }
-  .topbar, .topbar-right, .filter-grid, .kpi-grid, .two-col { grid-template-columns: 1fr; display: grid; }
-  .search-wrap { grid-column: span 1; }
-  .topbar-right { justify-content: start; }
-  .topbar h1 { font-size: 28px; }
-  .trend-grid { grid-template-columns: repeat(5, minmax(48px, 1fr)); }
+function formatNumber(n) { return new Intl.NumberFormat().format(n || 0); }
+function queryString(obj) { return new URLSearchParams(obj).toString(); }
+async function fetchJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); }
+
+function getFilters() {
+  const selected = state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : byId('neighborhood').value;
+  return {
+    jurisdiction: byId('jurisdiction').value,
+    category: byId('category').value,
+    neighborhood: selected || 'all',
+    start_year: byId('startYear').value,
+    end_year: byId('endYear').value,
+  };
 }
 
-.clickable-row {
-  cursor: pointer;
+function renderLoadMessages(notes, errors) {
+  byId('loadNotes').innerHTML = (notes || []).map(n => `<span class="note-pill">${escapeHtml(n)}</span>`).join('');
+  byId('loadErrors').innerHTML = (errors || []).map(e => `<div>${escapeHtml(e)}</div>`).join('');
 }
 
-.linkish {
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  color: #1d4ed8;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+function populateNeighborhoods(items) {
+  const select = byId('neighborhood');
+  const search = byId('neighborhoodSearch');
+  const current = state.selectedNeighborhood === 'all' ? select.value : state.selectedNeighborhood;
+  const unique = [...new Set((items || []).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  select.innerHTML = '<option value="all">All neighborhoods</option>';
+  unique.forEach((n) => {
+    const opt = document.createElement('option');
+    opt.value = n;
+    opt.textContent = n;
+    select.appendChild(opt);
+  });
+  if ([...select.options].some(o => o.value === current)) {
+    select.value = current;
+  } else {
+    select.value = 'all';
+    if (state.selectedNeighborhood !== 'all') state.selectedNeighborhood = 'all';
+  }
+  search.value = select.value !== 'all' ? select.value : '';
 }
 
-.linkish:hover {
-  text-decoration: underline;
+async function loadMeta() {
+  state.meta = await fetchJson('/api/meta');
+  populateNeighborhoods(state.meta.neighborhoods || []);
+  renderLoadMessages(state.meta.load_notes || [], state.meta.load_errors || []);
 }
 
-.drill-chart .trend-stack.single-series {
-  justify-content: flex-end;
+async function loadSummary() {
+  state.summary = await fetchJson(`/api/summary?${queryString(getFilters())}`);
+  renderLoadMessages(state.summary.load_notes || [], state.summary.load_errors || []);
+  renderCards();
+  renderAnnualChart();
+  renderNeighborhoodTable();
+  renderAnnualNeighborhoodTable();
+  renderDrilldownChart();
+  renderSamples();
+  renderMapList();
 }
 
-.trend-segment.primary {
-  width: 44px;
-  background: linear-gradient(180deg, #93c5fd 0%, #316fdd 100%);
-  border-radius: 10px 10px 0 0;
+
+function renderLegend(targetId, items) {
+  const el = byId(targetId);
+  if (!el) return;
+  el.innerHTML = items.map(item => `
+    <span class="legend-item">
+      <span class="legend-swatch" style="background:${item.color}"></span>
+      <span>${escapeHtml(item.label)}</span>
+    </span>
+  `).join('');
 }
 
-.click-table tbody tr:hover,
-.annual-table tbody tr:hover {
-  background: #f8fbff;
+const SERIES_META = [
+  {key: 'New SFR', label: 'New SFR', color: '#6d8fb3'},
+  {key: 'New MF', label: 'New MF', color: '#9cb4c9'},
+  {key: 'Other New', label: 'Other New', color: '#8fa48f'},
+  {key: 'Demo', label: 'Demo', color: '#d8a45b'},
+];
+
+
+function renderCards() {
+  const c = state.summary.cards || {};
+  const cards = [
+    ['Total permits', c.total_permits], ['Seattle', c.seattle_permits], ['Bellevue', c.bellevue_permits],
+    ['Known neighborhoods', c.known_neighborhoods], ['All new construction', c.total_new_construction], ['New SFR', c.new_sfr], ['New MF', c.new_mf], ['Other New', c.other_new], ['Demo', c.demo],
+  ];
+  byId('cards').innerHTML = cards.map(([label, value]) => `<article class="card"><div class="card-label">${escapeHtml(label)}</div><div class="card-value">${formatNumber(value)}</div></article>`).join('');
 }
+
+function drawGroupedBars(canvas, labels, series) {
+  const ctx = canvas.getContext('2d');
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.width = canvas.clientWidth * ratio;
+  const h = canvas.height = canvas.clientHeight * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  ctx.clearRect(0, 0, cw, ch);
+
+  const margin = {left: 42, right: 18, top: 16, bottom: 32};
+  const plotW = Math.max(1, cw - margin.left - margin.right);
+  const plotH = Math.max(1, ch - margin.top - margin.bottom);
+  const maxVal = Math.max(1, ...series.flatMap(s => s.values || []));
+  const colors = ['#6d8fb3', '#9cb4c9', '#8fa48f', '#d8a45b'];
+
+  ctx.strokeStyle = '#d6dee8';
+  ctx.fillStyle = '#6b7785';
+  ctx.font = '12px Arial';
+
+  for (let i = 0; i <= 4; i++) {
+    const y = margin.top + plotH - (plotH * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(cw - margin.right, y);
+    ctx.stroke();
+    ctx.fillText(String(Math.round(maxVal * i / 4)), 8, y + 4);
+  }
+
+  if (!labels.length || !series.length) {
+    ctx.fillStyle = '#6b7785';
+    ctx.fillText('No data for current filters', margin.left, margin.top + 20);
+    return;
+  }
+
+  const groupW = plotW / labels.length;
+  const barW = Math.min(22, Math.max(8, (groupW - 12) / series.length));
+
+  labels.forEach((label, li) => {
+    const gx = margin.left + li * groupW + 6;
+    series.forEach((s, si) => {
+      const val = s.values[li] || 0;
+      const barH = (val / maxVal) * plotH;
+      const x = gx + si * barW;
+      const y = margin.top + plotH - barH;
+      ctx.fillStyle = colors[si % colors.length];
+      ctx.fillRect(x, y, barW - 2, barH);
+    });
+    ctx.fillStyle = '#334155';
+    ctx.fillText(String(label), gx, ch - 8);
+  });
+}
+
+function renderAnnualChart() {
+  const data = state.summary.annual_series || [];
+  renderLegend('annualLegend', SERIES_META);
+  drawGroupedBars(byId('annualChart'), data.map(r => r.year), [
+    {name: 'New SFR', values: data.map(r => r['New SFR'])},
+    {name: 'New MF', values: data.map(r => r['New MF'])},
+    {name: 'Other New', values: data.map(r => r['Other New'])},
+    {name: 'Demo', values: data.map(r => r['Demo'])},
+  ]);
+}
+
+function renderDrilldownChart() {
+  const rows = state.summary.neighborhood_rows || [];
+  const current = state.selectedNeighborhood !== 'all'
+    ? rows.find(r => r.neighborhood === state.selectedNeighborhood)
+    : rows[0];
+  byId('drilldownTitle').textContent = current ? current.neighborhood : 'No neighborhood selected';
+  if (!current) {
+    drawGroupedBars(byId('drilldownChart'), [], []);
+    return;
+  }
+  const labels = Object.keys(current.years);
+  renderLegend('drilldownLegend', SERIES_META);
+  drawGroupedBars(byId('drilldownChart'), labels, [
+    {name: 'New SFR', values: labels.map(y => current.years[y]['New SFR'])},
+    {name: 'New MF', values: labels.map(y => current.years[y]['New MF'])},
+    {name: 'Other New', values: labels.map(y => current.years[y]['Other New'])},
+    {name: 'Demo', values: labels.map(y => current.years[y]['Demo'])},
+  ]);
+}
+
+function renderNeighborhoodTable() {
+  const tbody = byId('neighborhoodTable').querySelector('tbody');
+  const rows = state.summary.neighborhood_rows || [];
+  tbody.innerHTML = rows.slice(0, 40).map(r => `
+    <tr data-neighborhood="${escapeHtml(r.neighborhood)}" class="${r.neighborhood === state.selectedNeighborhood ? 'selected' : ''}">
+      <td>${escapeHtml(r.neighborhood)}</td>
+      <td>${formatNumber(r.totals.Total)}</td>
+      <td>${formatNumber(r.totals['New SFR'])}</td>
+      <td>${formatNumber(r.totals['New MF'])}</td>
+      <td>${formatNumber(r.totals['Other New'])}</td>
+      <td>${formatNumber(r.totals['Demo'])}</td>
+    </tr>`).join('');
+  tbody.querySelectorAll('tr').forEach((tr) => tr.addEventListener('click', async () => {
+    state.selectedNeighborhood = tr.dataset.neighborhood;
+    byId('neighborhood').value = state.selectedNeighborhood;
+    byId('neighborhoodSearch').value = state.selectedNeighborhood;
+    await loadSummary();
+  }));
+}
+
+function renderAnnualNeighborhoodTable() {
+  const rows = state.summary.neighborhood_rows || [];
+  const target = state.selectedNeighborhood !== 'all'
+    ? rows.filter(r => r.neighborhood === state.selectedNeighborhood)
+    : rows.slice(0, 12);
+  const years = (state.summary.annual_series || []).map(r => r.year);
+  byId('annualNeighborhoodTable').querySelector('thead').innerHTML =
+    `<tr><th>Neighborhood</th>${years.map(y => `<th>${y}</th>`).join('')}<th>Total</th></tr>`;
+  byId('annualNeighborhoodTable').querySelector('tbody').innerHTML = target.map(r =>
+    `<tr><td>${escapeHtml(r.neighborhood)}</td>${years.map(y => `<td>${formatNumber(r.years[String(y)].Total)}</td>`).join('')}<td>${formatNumber(r.totals.Total)}</td></tr>`
+  ).join('');
+}
+
+function renderSamples() {
+  byId('sampleTable').querySelector('tbody').innerHTML = (state.summary.samples || []).map(r =>
+    `<tr><td>${escapeHtml(r.jurisdiction)}</td><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.neighborhood)}</td><td>${escapeHtml(r.address)}</td><td>${escapeHtml((r.issue_date || r.intake_date || '').slice(0, 10))}</td></tr>`
+  ).join('');
+}
+
+function renderMapList() {
+  const pts = state.summary.map_points || [];
+  byId('mapList').innerHTML = pts.length
+    ? pts.map(p => `<div class="map-pill"><strong>${escapeHtml(p.jurisdiction)}</strong><span>${escapeHtml(p.category)}</span><span>${escapeHtml(p.neighborhood)}</span><span>${escapeHtml(p.address)}</span></div>`).join('')
+    : '<div class="muted">No mapped points in this filtered view.</div>';
+}
+
+function wireEvents() {
+  ['jurisdiction', 'category', 'startYear', 'endYear'].forEach((id) => {
+    byId(id).addEventListener('change', async () => { await loadSummary(); });
+  });
+
+  byId('neighborhood').addEventListener('change', async () => {
+    state.selectedNeighborhood = byId('neighborhood').value;
+    byId('neighborhoodSearch').value = state.selectedNeighborhood === 'all' ? '' : state.selectedNeighborhood;
+    await loadSummary();
+  });
+
+  byId('neighborhoodSearch').addEventListener('input', () => {
+    const q = byId('neighborhoodSearch').value.trim().toLowerCase();
+    const opts = [...byId('neighborhood').options];
+    if (!q) {
+      byId('neighborhood').value = 'all';
+      return;
+    }
+    const hit = opts.find(o => o.value !== 'all' && o.value.toLowerCase().includes(q));
+    if (hit) byId('neighborhood').value = hit.value;
+  });
+
+  byId('neighborhoodSearch').addEventListener('change', async () => {
+    state.selectedNeighborhood = byId('neighborhood').value;
+    await loadSummary();
+  });
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  wireEvents();
+  try {
+    await loadMeta();
+    await loadSummary();
+  } catch (err) {
+    renderLoadMessages([], [err.message || String(err)]);
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (state.summary) {
+    renderAnnualChart();
+    renderDrilldownChart();
+  }
+});

@@ -1,0 +1,18 @@
+{
+  "neighborhoods": [
+    "Ballard",
+    "Bellevue Downtown",
+    "Capitol Hill",
+    "Eastgate",
+    "Queen Anne",
+    "Wallingford",
+    "Wilburton"
+  ],
+  "load_notes": [
+    "Serving precomputed starter dataset for instant startup.",
+    "Run refresh_data.py locally to rebuild from live Seattle and Bellevue sources.",
+    "Run refresh_data.py locally to refresh broader all-new-construction counts.",
+    "Starter data predates the Other New bucket. Run refresh_data.py, then commit data/summary.json and data/meta.json to see higher all-new counts."
+  ],
+  "load_errors": []
+}
