@@ -4,16 +4,16 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Permit Dashboard</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 </head>
 <body>
   <div class="page">
     <header class="hero">
       <div>
         <div class="eyebrow">Permit Dashboard</div>
-        <h1>Seattle + Bellevue new construction and demo</h1>
-        <p class="subhead">Summary-first view for 2022–2026. Includes demo, single-family, multifamily, and other new construction. Neighborhoods are searchable and the board stays lightweight because it serves precomputed data.</p>
+        <h1>Seattle + Bellevue permit trend view</h1>
+        <p class="subhead">Precomputed executive dashboard for 2022–2026 demo and new-construction permit activity by neighborhood and year.</p>
       </div>
     </header>
 
@@ -26,10 +26,7 @@
         <label><span>Start year</span><select id="startYear">{% for year in years %}<option value="{{ year }}" {% if year == years[0] %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></label>
         <label><span>End year</span><select id="endYear">{% for year in years %}<option value="{{ year }}" {% if year == years[-1] %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></label>
       </div>
-      <div class="notes-row">
-        <div id="loadNotes" class="notes"></div>
-        <div id="loadErrors" class="errors"></div>
-      </div>
+      <div class="notes-row"><div id="loadNotes" class="notes"></div><div id="loadErrors" class="errors"></div></div>
     </section>
 
     <section class="cards" id="cards"></section>
@@ -51,12 +48,7 @@
       <div class="panel">
         <div class="panel-head"><h2>Neighborhood ranking</h2><div class="muted">Click a row to filter the dashboard</div></div>
         <div class="table-wrap tall">
-          <table id="neighborhoodTable">
-            <thead>
-              <tr><th>Neighborhood</th><th>Total</th><th>All New</th><th>New SFR</th><th>New MF</th><th>Other New</th><th>Demo</th></tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+          <table id="neighborhoodTable"><thead><tr><th>Neighborhood</th><th>Total</th><th>All New</th><th>New SFR</th><th>New MF</th><th>Other New</th><th>Demo</th></tr></thead><tbody></tbody></table>
         </div>
       </div>
       <div class="panel">
@@ -71,12 +63,12 @@
         <div class="table-wrap"><table id="sampleTable"><thead><tr><th>Jurisdiction</th><th>Category</th><th>Neighborhood</th><th>Address</th><th>Issued</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="panel">
-        <div class="panel-head"><h2>Map</h2><div class="muted">Precomputed point sample</div></div>
+        <div class="panel-head"><h2>Map</h2><div class="muted">Sample points with valid coordinates</div></div>
         <div id="map"></div>
       </div>
     </section>
   </div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
