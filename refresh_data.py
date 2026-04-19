@@ -6,7 +6,6 @@ This keeps Render startup instant while still allowing fresh civic-data pulls.
 from __future__ import annotations
 
 import csv
-import io
 import json
 import os
 from datetime import datetime, timezone
@@ -20,8 +19,7 @@ DATA_DIR = BASE_DIR / 'data'
 DATA_DIR.mkdir(exist_ok=True)
 
 YEARS = [2022, 2023, 2024, 2025, 2026]
-CATEGORY_KEYS = ['New SFR', 'New MF', 'Other New', 'Demo']
-
+VALID_CATEGORIES = ['New SFR', 'New MF', 'Other New', 'Demo']
 SEATTLE_PERMITS_URL = 'https://data.seattle.gov/resource/76t5-zqzr.json'
 SEATTLE_NEIGHBORHOODS_URL = (
     'https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/'
@@ -30,47 +28,39 @@ SEATTLE_NEIGHBORHOODS_URL = (
 BELLEVUE_PERMITS_CSV_FALLBACKS = [
     os.getenv('BELLEVUE_PERMITS_URL', '').strip(),
     'https://hub.arcgis.com/api/download/v1/items/fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=true',
-    'https://opendata.arcgis.com/api/v3/datasets/fc7da7bd29d4493481b17d032e117d09_0/downloads/data?format=csv&spatialRefId=4326',
 ]
 REQUEST_TIMEOUT = 120
 SESSION = requests.Session()
-SESSION.headers.update({'User-Agent': 'permit-dashboard-precompute/19.0'})
+SESSION.headers.update({'User-Agent': 'permit-dashboard-precompute/20.0'})
 
-SEATTLE_GROUP_ALIASES = {
-    'West Seattle': {
-        'west seattle', 'admiral', 'alki', 'arbor heights', 'gatewood', 'genesee', 'fairmount park',
-        'fauntleroy', 'high point', 'highland park', 'junction', 'morgan junction', 'north delridge',
-        'south delridge', 'roxhill', 'seaview', 'sunset hill west seattle'
-    },
-    'Ballard': {'ballard', 'adams', 'loyal heights', 'sunset hill', 'whittier heights', 'crown hill'},
-    'Capitol Hill': {'capitol hill', 'broadway', 'pike pine', 'miller park'},
-    'Queen Anne': {'queen anne', 'lower queen anne', 'uptown', 'east queen anne', 'west queen anne'},
-    'Wallingford': {'wallingford'},
-    'Fremont': {'fremont'},
-    'Green Lake': {'green lake', 'phinney ridge', 'greenwood'},
-    'Central District': {'central area', 'central district', 'madison valley', 'madrona', 'leschi'},
-    'Beacon Hill': {'beacon hill', 'north beacon hill', 'mid beacon hill', 'south beacon hill'},
+SEATTLE_ROLLUPS = {
+    'West Seattle': {'admiral', 'alki', 'arbor heights', 'delridge', 'fairmount park', 'fauntleroy', 'gatewood', 'genesee', 'high point', 'highland park', 'junction', 'morgan junction', 'north delridge', 'south delridge', 'roxhill', 'seaview', 'west seattle', 'north admiral', 'sunset hill west seattle'},
+    'Ballard': {'ballard', 'sunset hill', 'whittier heights', 'crown hill', 'loyal heights', 'adams', 'gilman park'},
+    'Capitol Hill': {'capitol hill', 'north capitol hill', 'montlake', 'madison valley', 'eastlake', 'broadway'},
+    'Queen Anne': {'queen anne', 'east queen anne', 'lower queen anne', 'west queen anne', 'north queen anne', 'uptown'},
+    'Wallingford': {'wallingford', 'fremont', 'east fremont', 'westlake'},
+    'Central District': {'central district', 'minor', 'madison park', 'madrona', 'mann', 'leschi'},
+    'Beacon Hill': {'beacon hill', 'north beacon hill', 'mid beacon hill', 'south beacon hill', 'north beacon hill'},
     'Magnolia': {'magnolia', 'discovery park'},
-    'Georgetown': {'georgetown'},
-    'South Park': {'south park'},
-    'Ravenna': {'ravenna', 'wedgwood', 'view ridge', 'bryant', 'laurelhurst'},
-    'Roosevelt': {'roosevelt', 'maple leaf', 'northgate', 'haller lake', 'pinehurst'},
-    'Mount Baker': {'mount baker', 'columbia city', 'seward park', 'rainier beach', 'rainier valley', 'brighton'},
+    'Green Lake': {'green lake', 'phinney ridge', 'greenwood', 'woodland'},
+    'Roosevelt': {'roosevelt', 'ravenna', 'wedgwood', 'view ridge', 'university district', 'laurelhurst', 'bryant', 'maple leaf'},
+    'Georgetown / South Park': {'georgetown', 'south park'},
+    'Rainier Valley': {'columbia city', 'mount baker', 'rainier beach', 'rainier view', 'seward park', 'brighton', 'hillman city', 'north rainier', 'oakhurst', 'genesee park'},
 }
 
-BELLEVUE_GROUP_ALIASES = {
-    'Bellevue Downtown': {'downtown', 'bellevue downtown', 'old bellevue'},
-    'Wilburton': {'wilburton'},
+BELLEVUE_ROLLUPS = {
+    'Bellevue Downtown': {'bellevue downtown', 'downtown', 'old bellevue'},
+    'BelRed': {'belred', 'bel-red', 'spring district'},
     'Eastgate': {'eastgate'},
-    'BelRed': {'belred', 'bel-red'},
-    'Crossroads': {'crossroads'},
     'Factoria': {'factoria'},
+    'Wilburton': {'wilburton'},
+    'Crossroads': {'crossroads'},
     'West Bellevue': {'west bellevue', 'meydenbauer', 'enatai'},
-    'Lake Hills': {'lake hills', 'phantom lake'},
-    'Newport': {'newport'},
-    'Bridle Trails': {'bridle trails'},
+    'Lake Hills': {'lake hills', 'lakehills'},
+    'Newport': {'newport', 'newport hills'},
     'Somerset': {'somerset'},
-    'Lakemont': {'lakemont', 'cougar mountain'},
+    'Bridle Trails': {'bridle trails'},
+    'Lakemont / Cougar Mountain': {'lakemont', 'cougar mountain'},
 }
 
 
@@ -107,6 +97,10 @@ def normalize(text: Any) -> str:
     return ' '.join(str(text or '').replace('\xa0', ' ').split())
 
 
+def norm_key(text: Any) -> str:
+    return normalize(text).lower().replace('_', ' ').strip()
+
+
 def clean_neighborhood(text: Any) -> str:
     value = normalize(text)
     if not value:
@@ -117,36 +111,56 @@ def clean_neighborhood(text: Any) -> str:
     return value
 
 
-def apply_alias(name: str, alias_map: dict[str, set[str]]) -> str:
+def normalize_seattle_neighborhood(name: Any) -> str:
     raw = clean_neighborhood(name)
     if raw == 'Unknown':
         return raw
     low = raw.lower()
-    for group, aliases in alias_map.items():
-        if low == group.lower() or low in aliases:
-            return group
-    return raw
+    for rollup, aliases in SEATTLE_ROLLUPS.items():
+        if low == rollup.lower() or low in aliases:
+            return rollup
+    return raw.title() if raw.islower() else raw
+
+
+def normalize_bellevue_neighborhood(name: Any) -> str:
+    raw = clean_neighborhood(name)
+    if raw == 'Unknown':
+        return raw
+    low = raw.lower()
+    for rollup, aliases in BELLEVUE_ROLLUPS.items():
+        if low == rollup.lower() or low in aliases:
+            return rollup
+    return raw.title() if raw.islower() else raw
 
 
 def classify(text: str):
     t = f" {normalize(text).lower()} "
-    has_demo = any(k in t for k in [' demol', ' demolition', ' demo ', ' teardown', ' raze', ' remove structure'])
-    if has_demo:
+    is_demo = any(k in t for k in [' demol', ' demolition', ' demo ', ' teardown', ' raze', ' remove structure', 'deconstruct'])
+    if is_demo:
         return 'Demo'
-    new_signals = [' new ', 'new construction', 'ground up', 'new bldg', 'new building', 'construct new', 'construction of', 'erect']
-    has_new = any(k in t for k in new_signals)
-    has_sf = any(k in t for k in [' single family', 'single-family', ' sfr ', 'detached', 'one-family', 'single family residence'])
+
+    new_markers = [
+        ' new ', 'new construction', 'ground up', 'construct', 'new bldg', 'new building',
+        'new res', 'new residence', 'new single family', 'new multifamily', 'new apartment',
+        'new townhome', 'new townhouse', 'erect', 'proposed new', 'new mixed use', 'new mixed-use',
+        'construct new', 'construction of new', 'new structure', 'new commercial shell'
+    ]
+    has_new = any(k in t for k in new_markers)
+    if not has_new:
+        return None
+
+    has_sf = any(k in t for k in [' single family', 'single-family', ' sfr ', 'detached', 'one-family', 'single family residence', 'one unit', '1 unit'])
     has_mf = any(k in t for k in [
-        ' multifamily', 'multi-family', 'multi family', ' apartment', 'apartments', 'townhome', 'townhouse', 'condo',
-        'condominium', 'duplex', 'triplex', 'fourplex', 'mixed use', 'mixed-use', 'rowhouse', 'stacked flat', 'live/work'
+        ' multifamily', 'multi-family', 'multi family', ' apartment', 'apartments', 'townhome',
+        'townhouse', 'condo', 'condominium', 'duplex', 'triplex', 'fourplex', 'mixed use', 'mixed-use',
+        'rowhouse', 'live/work', 'stacked flat', 'multi unit', '5 unit', '6 unit', '7 unit', '8 unit',
+        '9 unit', '10 unit', '11 unit', '12 unit', '13 unit', '14 unit', '15 unit'
     ])
-    if has_new and has_sf and not has_mf:
+    if has_sf and not has_mf:
         return 'New SFR'
-    if has_new and has_mf:
+    if has_mf:
         return 'New MF'
-    if has_new:
-        return 'Other New'
-    return None
+    return 'Other New'
 
 
 def extract_point(row: dict[str, Any]):
@@ -229,7 +243,7 @@ def fetch_seattle_neighborhoods():
             max(pt[0] for ring in rings for pt in ring),
             max(pt[1] for ring in rings for pt in ring),
         ]
-        name = apply_alias(attrs.get('S_HOOD_ALT_NAMES') or attrs.get('L_HOOD'), SEATTLE_GROUP_ALIASES)
+        name = normalize_seattle_neighborhood(attrs.get('S_HOOD_ALT_NAMES') or attrs.get('L_HOOD'))
         out.append({'name': name, 'rings': rings, 'bbox': bbox})
     return out
 
@@ -251,8 +265,9 @@ def fetch_seattle_rows(neighborhoods):
     offset = 0
     out = []
     pages = 0
+    examined = 0
     unknown_rows = 0
-    dropped_examples = []
+    dropped_examples: list[str] = []
     while True:
         params = {
             '$limit': '1000',
@@ -266,12 +281,13 @@ def fetch_seattle_rows(neighborhoods):
         if not rows:
             break
         pages += 1
+        examined += len(rows)
         for r in rows:
-            text = ' '.join(str(r.get(k, '')) for k in ['permitclass', 'permittype', 'description'])
+            text = ' '.join(str(r.get(k, '')) for k in ['permitclass', 'permittype', 'description', 'workdescription', 'subtype'])
             category = classify(text)
             if not category:
-                if len(dropped_examples) < 30:
-                    dropped_examples.append(normalize(text)[:200])
+                if len(dropped_examples) < 20:
+                    dropped_examples.append(normalize(text)[:180])
                 continue
             issue_dt = parse_dt(r.get('issueddate'))
             intake_dt = parse_dt(r.get('applieddate'))
@@ -279,7 +295,7 @@ def fetch_seattle_rows(neighborhoods):
             if not year_dt or year_dt.year not in YEARS:
                 continue
             point = extract_point(r)
-            neighborhood = apply_alias(r.get('neighborhood') or r.get('neighborhoodname'), SEATTLE_GROUP_ALIASES)
+            neighborhood = normalize_seattle_neighborhood(r.get('neighborhood') or r.get('neighborhoodname'))
             if neighborhood == 'Unknown':
                 neighborhood = assign_seattle_neighborhood(point, neighborhoods)
             if neighborhood == 'Unknown':
@@ -291,13 +307,13 @@ def fetch_seattle_rows(neighborhoods):
                 'address': normalize(r.get('originaladdress1') or r.get('address')),
                 'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
                 'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
-                'longitude': point[0] if point else None,
-                'latitude': point[1] if point else None,
+                'lat': point[1] if point else None,
+                'lon': point[0] if point else None,
             })
         offset += len(rows)
         if len(rows) < 1000:
             break
-    return out, {'pages': pages, 'rows_kept': len(out), 'unknown_rows': unknown_rows, 'dropped_examples': dropped_examples}
+    return out, {'pages': pages, 'rows_examined': examined, 'rows_kept': len(out), 'unknown_rows': unknown_rows, 'dropped_examples': dropped_examples}
 
 
 def stream_csv_dicts(url: str) -> Iterable[dict[str, str]]:
@@ -314,74 +330,78 @@ def pick_first(row: dict[str, Any], keys: list[str]):
     for key in keys:
         if key in row and normalize(row.get(key)):
             return row.get(key)
-    normalized_map = {normalize(k).lower().replace('_', '').replace(' ', ''): k for k in row.keys()}
+    normalized_map = {norm_key(k).replace(' ', ''): k for k in row.keys()}
     for key in keys:
-        probe = normalize(key).lower().replace('_', '').replace(' ', '')
+        probe = norm_key(key).replace(' ', '')
         actual = normalized_map.get(probe)
         if actual and normalize(row.get(actual)):
             return row.get(actual)
     return None
 
 
-def fetch_bellevue_rows():
-    last_error = None
+def stream_bellevue_rows():
+    errors = []
     for url in [u for u in BELLEVUE_PERMITS_CSV_FALLBACKS if u]:
         try:
-            out = []
-            seen_columns = set()
-            examined = 0
-            unknown_rows = 0
-            dropped_examples = []
-            for r in stream_csv_dicts(url):
-                examined += 1
-                seen_columns.update(r.keys())
-                text = ' '.join(str(v or '') for v in r.values())
-                category = classify(text)
-                if not category:
-                    if len(dropped_examples) < 30:
-                        dropped_examples.append(normalize(text)[:200])
-                    continue
-                issue_dt = parse_dt(pick_first(r, ['ISSUEDATE', 'ISSUE_DATE', 'ISSUED DATE']))
-                intake_dt = parse_dt(pick_first(r, ['APPLICATIONDATE', 'APPLIEDDATE', 'APPLIED DATE', 'APPLICATION_DATE']))
-                year_dt = issue_dt or intake_dt
-                if not year_dt or year_dt.year not in YEARS:
-                    continue
-                neighborhood = apply_alias(pick_first(r, ['NEIGHBORHOODAREA', 'NEIGHBORHOOD AREA', 'NEIGHBORHOOD', 'AREA_NAME']), BELLEVUE_GROUP_ALIASES)
-                if neighborhood == 'Unknown':
-                    unknown_rows += 1
-                lon = pick_first(r, ['LONGITUDE', 'LON', 'X'])
-                lat = pick_first(r, ['LATITUDE', 'LAT', 'Y'])
-                try:
-                    lon = float(lon) if lon not in (None, '') else None
-                    lat = float(lat) if lat not in (None, '') else None
-                except Exception:
-                    lon = None
-                    lat = None
-                out.append({
-                    'jurisdiction': 'Bellevue',
-                    'category': category,
-                    'neighborhood': neighborhood,
-                    'address': normalize(pick_first(r, ['SITEADDRESS', 'SITE ADDRESS', 'ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'])),
-                    'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
-                    'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
-                    'longitude': lon,
-                    'latitude': lat,
-                })
-            return out, {
-                'rows_examined': examined,
-                'rows_kept': len(out),
-                'unknown_rows': unknown_rows,
-                'columns_seen': sorted(seen_columns)[:80],
-                'source_url': url,
-                'dropped_examples': dropped_examples,
-            }
+            yield from stream_csv_dicts(url)
+            return
         except Exception as e:
-            last_error = e
-    raise RuntimeError(f'Bellevue refresh failed across all CSV URLs: {last_error}')
+            errors.append(f'{url}: {e}')
+    raise RuntimeError(' | '.join(errors) if errors else 'No Bellevue CSV URL configured')
 
 
-def empty_bucket():
-    return {k: 0 for k in ['New SFR', 'New MF', 'Other New', 'Demo', 'All New', 'Total']}
+def fetch_bellevue_rows():
+    out = []
+    seen_columns = set()
+    examined = 0
+    unknown_rows = 0
+    dropped_examples: list[str] = []
+    for r in stream_bellevue_rows():
+        examined += 1
+        seen_columns.update(r.keys())
+        text = ' '.join(str(v or '') for v in r.values())
+        category = classify(text)
+        if not category:
+            if len(dropped_examples) < 20:
+                dropped_examples.append(normalize(text)[:180])
+            continue
+        issue_dt = parse_dt(pick_first(r, ['ISSUEDATE', 'ISSUE_DATE', 'ISSUED DATE']))
+        intake_dt = parse_dt(pick_first(r, ['APPLICATIONDATE', 'APPLIEDDATE', 'APPLIED DATE', 'APPLICATION_DATE']))
+        year_dt = issue_dt or intake_dt
+        if not year_dt or year_dt.year not in YEARS:
+            continue
+        neighborhood = normalize_bellevue_neighborhood(pick_first(r, ['NEIGHBORHOODAREA', 'NEIGHBORHOOD AREA', 'NEIGHBORHOOD', 'AREA_NAME']))
+        if neighborhood == 'Unknown':
+            unknown_rows += 1
+        lat = pick_first(r, ['LATITUDE', 'LAT', 'Y'])
+        lon = pick_first(r, ['LONGITUDE', 'LON', 'LNG', 'X'])
+        try:
+            lat = float(lat) if lat not in (None, '') else None
+            lon = float(lon) if lon not in (None, '') else None
+        except Exception:
+            lat = None
+            lon = None
+        out.append({
+            'jurisdiction': 'Bellevue',
+            'category': category,
+            'neighborhood': neighborhood,
+            'address': normalize(pick_first(r, ['SITEADDRESS', 'SITE ADDRESS', 'ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'])),
+            'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
+            'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
+            'lat': lat,
+            'lon': lon,
+        })
+    return out, {
+        'rows_examined': examined,
+        'rows_kept': len(out),
+        'columns_seen': sorted(seen_columns)[:60],
+        'unknown_rows': unknown_rows,
+        'dropped_examples': dropped_examples,
+    }
+
+
+def zero_bucket():
+    return {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'All New': 0, 'Total': 0}
 
 
 def build_outputs(rows, diagnostics):
@@ -396,22 +416,22 @@ def build_outputs(rows, diagnostics):
         agg.setdefault(hood, {
             'neighborhood': hood,
             'jurisdictions': set(),
-            'years': {str(y): empty_bucket() for y in YEARS},
+            'years': {str(y): zero_bucket() for y in YEARS},
         })
         agg[hood]['jurisdictions'].add(row['jurisdiction'])
         bucket = agg[hood]['years'][year]
         bucket[row['category']] += 1
         if row['category'] != 'Demo':
             bucket['All New'] += 1
-        bucket['Total'] += 1
-        if len(samples) < 80:
+        bucket['Total'] = bucket['All New'] + bucket['Demo']
+        if len(samples) < 30:
             samples.append(row)
-        if row.get('latitude') not in (None, '') and row.get('longitude') not in (None, '') and len(map_points) < 250:
+        if row.get('lat') is not None and row.get('lon') is not None and len(map_points) < 120:
             map_points.append(row)
 
     neighborhood_rows = []
     for hood, item in agg.items():
-        totals = empty_bucket()
+        totals = zero_bucket()
         for y in YEARS:
             yr = item['years'][str(y)]
             for k in totals:
@@ -426,44 +446,40 @@ def build_outputs(rows, diagnostics):
 
     annual_series = []
     for y in YEARS:
-        record = {'year': y, **empty_bucket()}
+        record = {'year': y, **zero_bucket()}
         for row in neighborhood_rows:
             yr = row['years'][str(y)]
-            for k in ['New SFR', 'New MF', 'Other New', 'Demo', 'All New', 'Total']:
+            for k in zero_bucket():
                 record[k] += yr[k]
         annual_series.append(record)
 
     known_hoods = [r for r in neighborhood_rows if r['neighborhood'] != 'Unknown']
-    unknown_bucket = next((r for r in neighborhood_rows if r['neighborhood'] == 'Unknown'), None)
     summary = {
         'generated_at': datetime.now(timezone.utc).isoformat(),
         'cards': {
             'total_permits': sum(r['totals']['Total'] for r in neighborhood_rows),
-            'all_new': sum(r['totals']['All New'] for r in neighborhood_rows),
             'seattle_permits': sum(r['totals']['Total'] for r in neighborhood_rows if 'Seattle' in r['jurisdictions']),
             'bellevue_permits': sum(r['totals']['Total'] for r in neighborhood_rows if 'Bellevue' in r['jurisdictions']),
             'known_neighborhoods': len(known_hoods),
-            'unknown_neighborhoods': unknown_bucket['totals']['Total'] if unknown_bucket else 0,
+            'unknown_neighborhoods': sum(r['totals']['Total'] for r in neighborhood_rows if r['neighborhood'] == 'Unknown'),
             'new_sfr': sum(r['totals']['New SFR'] for r in neighborhood_rows),
             'new_mf': sum(r['totals']['New MF'] for r in neighborhood_rows),
             'other_new': sum(r['totals']['Other New'] for r in neighborhood_rows),
+            'all_new': sum(r['totals']['All New'] for r in neighborhood_rows),
             'demo': sum(r['totals']['Demo'] for r in neighborhood_rows),
         },
         'annual_series': annual_series,
         'neighborhood_rows': neighborhood_rows,
-        'samples': samples[:25],
-        'map_points': map_points[:200],
+        'samples': samples,
+        'map_points': map_points,
         'load_notes': [
             f"Precomputed refresh generated {len(rows)} target permit rows.",
             f"Known neighborhoods after refresh: {len(known_hoods)}.",
-            f"Seattle kept {diagnostics.get('seattle_rows_kept', 0)} rows across {diagnostics.get('seattle_pages', 0)} pages.",
-            f"Bellevue kept {diagnostics.get('bellevue_rows_kept', 0)} rows after scanning {diagnostics.get('bellevue_rows_examined', 0)} CSV rows.",
-            "Unknown-neighborhood permits still in dataset: pending."
+            f"Seattle kept {diagnostics.get('seattle_rows_kept', 0)} rows after scanning {diagnostics.get('seattle_rows_examined', 0)} rows.",
+            f"Bellevue kept {diagnostics.get('bellevue_rows_kept', 0)} rows after scanning {diagnostics.get('bellevue_rows_examined', 0)} rows.",
         ],
         'load_errors': diagnostics.get('errors', []),
     }
-    # fill placeholder after summary exists
-    summary['load_notes'][-1] = f"Unknown-neighborhood permits still in dataset: {summary['cards']['unknown_neighborhoods']}."
     meta = {
         'generated_at': summary['generated_at'],
         'neighborhoods': sorted(r['neighborhood'] for r in known_hoods),
@@ -488,6 +504,7 @@ def main():
     try:
         seattle_rows, seattle_info = fetch_seattle_rows(seattle_neighborhoods)
         diagnostics['seattle_pages'] = seattle_info['pages']
+        diagnostics['seattle_rows_examined'] = seattle_info['rows_examined']
         diagnostics['seattle_rows_kept'] = seattle_info['rows_kept']
         diagnostics['seattle_unknown_rows'] = seattle_info['unknown_rows']
         diagnostics['seattle_dropped_examples'] = seattle_info['dropped_examples']
@@ -499,26 +516,21 @@ def main():
         bellevue_rows, bellevue_info = fetch_bellevue_rows()
         diagnostics['bellevue_rows_examined'] = bellevue_info['rows_examined']
         diagnostics['bellevue_rows_kept'] = bellevue_info['rows_kept']
-        diagnostics['bellevue_unknown_rows'] = bellevue_info['unknown_rows']
         diagnostics['bellevue_columns_seen'] = bellevue_info['columns_seen']
-        diagnostics['bellevue_source_url'] = bellevue_info['source_url']
+        diagnostics['bellevue_unknown_rows'] = bellevue_info['unknown_rows']
         diagnostics['bellevue_dropped_examples'] = bellevue_info['dropped_examples']
         rows.extend(bellevue_rows)
         if bellevue_info['rows_kept'] == 0:
-            errors.append('Bellevue refresh returned zero target rows. Check BELLEVUE_PERMITS_URL or inspect columns_seen in data/refresh_debug.json.')
+            errors.append('Bellevue refresh returned zero target rows. Inspect columns_seen and dropped_examples in data/refresh_debug.json.')
     except Exception as e:
         errors.append(f'Bellevue refresh failed: {e}')
 
-    if not rows and (DATA_DIR / 'summary.json').exists() and (DATA_DIR / 'meta.json').exists():
-        print('Refresh produced zero rows. Preserving existing summary/meta files.')
-        diagnostics['preserved_existing'] = True
-    else:
-        summary, meta = build_outputs(rows, diagnostics)
-        (DATA_DIR / 'summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
-        (DATA_DIR / 'meta.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
-        print('Wrote', DATA_DIR / 'summary.json')
-        print('Wrote', DATA_DIR / 'meta.json')
+    summary, meta = build_outputs(rows, diagnostics)
+    (DATA_DIR / 'summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
+    (DATA_DIR / 'meta.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
     (DATA_DIR / 'refresh_debug.json').write_text(json.dumps(diagnostics, indent=2), encoding='utf-8')
+    print('Wrote', DATA_DIR / 'summary.json')
+    print('Wrote', DATA_DIR / 'meta.json')
     print('Wrote', DATA_DIR / 'refresh_debug.json')
 
 
