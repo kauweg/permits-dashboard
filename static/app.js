@@ -54,7 +54,7 @@ async function loadMeta() {
 async function loadSummary() {
   state.summary = await fetchJson(`/api/summary?${queryString(getFilters())}`);
   renderLoadMessages(state.summary.load_notes || [], state.summary.load_errors || []);
-  renderCards(); renderAnnualChart(); renderNeighborhoodTable(); renderAnnualNeighborhoodTable(); renderDrilldownChart(); renderSamples(); renderMap();
+  renderCards(); renderAnnualChart(); renderNeighborhoodTable(); renderAnnualNeighborhoodTable(); renderDrilldownChart(); renderMap();
 }
 
 function renderCards() {
@@ -147,16 +147,6 @@ function renderAnnualNeighborhoodTable() {
   const years = (state.summary.annual_series || []).map(r => r.year);
   byId('annualNeighborhoodTable').querySelector('thead').innerHTML = `<tr><th>Neighborhood</th>${years.map(y => `<th>${y}</th>`).join('')}<th>Total</th></tr>`;
   byId('annualNeighborhoodTable').querySelector('tbody').innerHTML = target.map(r => `<tr><td>${escapeHtml(r.neighborhood)}</td>${years.map(y => `<td>${formatNumber(r.years[String(y)].Total)}</td>`).join('')}<td>${formatNumber(r.totals.Total)}</td></tr>`).join('');
-}
-
-function renderSamples() {
-  byId('sampleTable').querySelector('tbody').innerHTML = (state.summary.samples || []).map(r => `<tr><td>${escapeHtml(r.jurisdiction)}</td><td>${escapeHtml(r.category)}</td><td>${escapeHtml(r.neighborhood)}</td><td>${escapeHtml(r.address)}</td><td>${escapeHtml((r.issue_date || r.intake_date || '').slice(0, 10))}</td></tr>`).join('');
-}
-
-function initMap() {
-  state.map = L.map('map').setView([47.6062, -122.3321], 10);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(state.map);
-  state.mapLayer = L.layerGroup().addTo(state.map);
 }
 
 function renderMap() {
