@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-22T17:58:17.803738+00:00",
+  "generated_at": "2026-04-22T18:22:23.262558+00:00",
   "cards": {
     "total_permits": 21484,
     "seattle_permits": 21484,
@@ -1012,7 +1012,9 @@
       "neighborhood": "University District, Cowen Park, University Heights",
       "address": "1915 NE CHELAN LN",
       "issue_date": "2022-04-27",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.30658918,
+      "latitude": 47.65849361
     },
     {
       "jurisdiction": "Seattle",
@@ -1020,7 +1022,9 @@
       "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
       "address": "7142 47TH AVE SW",
       "issue_date": "2023-10-05",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.39277283,
+      "latitude": 47.53835472
     },
     {
       "jurisdiction": "Seattle",
@@ -1028,7 +1032,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9201 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33802836,
+      "latitude": 47.69608502
     },
     {
       "jurisdiction": "Seattle",
@@ -1036,7 +1042,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9227 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33795256,
+      "latitude": 47.69677791
     },
     {
       "jurisdiction": "Seattle",
@@ -1044,7 +1052,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9213 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3380333,
+      "latitude": 47.69641849
     },
     {
       "jurisdiction": "Seattle",
@@ -1052,7 +1062,9 @@
       "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
       "address": "518 N 61ST ST",
       "issue_date": "2022-08-08",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3520259,
+      "latitude": 47.67345757
     },
     {
       "jurisdiction": "Seattle",
@@ -1060,7 +1072,9 @@
       "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
       "address": "6257 43RD AVE NE",
       "issue_date": "2022-01-03",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.2825356,
+      "latitude": 47.67561479
     },
     {
       "jurisdiction": "Seattle",
@@ -1068,7 +1082,9 @@
       "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
       "address": "6037 ATLAS PL SW",
       "issue_date": "2022-03-16",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3973289,
+      "latitude": 47.54797311
     },
     {
       "jurisdiction": "Seattle",
@@ -1076,7 +1092,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9202 WOODLAWN AVE N",
       "issue_date": "2022-06-22",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33839926,
+      "latitude": 47.69612901
     },
     {
       "jurisdiction": "Seattle",
@@ -1084,7 +1102,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9207 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33803188,
+      "latitude": 47.69622992
     },
     {
       "jurisdiction": "Seattle",
@@ -1092,7 +1112,9 @@
       "neighborhood": "Lawton Park, Briarcliff, Southeast Magnolia, Carleton Park",
       "address": "2551 28TH AVE W",
       "issue_date": "2022-02-09",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.39331235,
+      "latitude": 47.64239188
     },
     {
       "jurisdiction": "Seattle",
@@ -1100,7 +1122,9 @@
       "neighborhood": "Loyal Heights, Adams, Whittier Heights, West Woodland, Sunset Hill, Golden Gardens, Shilshole, Ballard",
       "address": "7031 11TH AVE NW",
       "issue_date": "2022-02-09",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.37073088,
+      "latitude": 47.68047834
     },
     {
       "jurisdiction": "Seattle",
@@ -1108,7 +1132,9 @@
       "neighborhood": "Madrona, Harrison/Denny-Blaine, Minor, Leschi, Mann, Atlantic, Squire Park, Judkins Park, Central District, Colman, Garfield, Jackson Place",
       "address": "1126 M L KING JR WAY",
       "issue_date": "2022-01-26",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.29562509,
+      "latitude": 47.61239306
     },
     {
       "jurisdiction": "Seattle",
@@ -1116,7 +1142,9 @@
       "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
       "address": "8124 STONE AVE N",
       "issue_date": "2022-03-02",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.34156163,
+      "latitude": 47.68845836
     },
     {
       "jurisdiction": "Seattle",
@@ -1124,7 +1152,9 @@
       "neighborhood": "East Queen Anne, West Queen Anne, Lower Queen Anne, North Queen Anne, Uptown, Seattle Center",
       "address": "2665 13TH AVE W",
       "issue_date": "2022-02-17",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.37312326,
+      "latitude": 47.64469573
     },
     {
       "jurisdiction": "Seattle",
@@ -1132,7 +1162,9 @@
       "neighborhood": "Unknown",
       "address": "206 S BRANDON ST",
       "issue_date": "2022-03-21",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33180612,
+      "latitude": 47.55435618
     },
     {
       "jurisdiction": "Seattle",
@@ -1140,7 +1172,9 @@
       "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
       "address": "3036 NE 90TH ST",
       "issue_date": "2022-07-20",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.29451106,
+      "latitude": 47.69405478
     },
     {
       "jurisdiction": "Seattle",
@@ -1148,7 +1182,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "14332 MERIDIAN AVE N",
       "issue_date": "2022-01-11",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3340075,
+      "latitude": 47.73328405
     },
     {
       "jurisdiction": "Seattle",
@@ -1156,7 +1192,9 @@
       "neighborhood": "Pike-Market, Belltown, International District, Central Business District, First Hill, Yesler Terrace, Pioneer Square, Denny Regrade, Denny Triangle, Commercial Core, West Edge, Pike Place Market, Chinatown, Little Saigon, ID",
       "address": "600 UNIVERSITY ST",
       "issue_date": "2022-02-16",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33230647,
+      "latitude": 47.60967251
     },
     {
       "jurisdiction": "Seattle",
@@ -1164,7 +1202,9 @@
       "neighborhood": "Brighton, Dunlap, Rainier Beach, Mount Baker, Columbia City, North Rainier, Lake Ridge, Rainier View, Columbia Heights",
       "address": "3810 S FERDINAND ST",
       "issue_date": "2022-05-03",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.28439243,
+      "latitude": 47.55805049
     }
   ],
   "map_points": [
@@ -1174,7 +1214,9 @@
       "neighborhood": "University District, Cowen Park, University Heights",
       "address": "1915 NE CHELAN LN",
       "issue_date": "2022-04-27",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.30658918,
+      "latitude": 47.65849361
     },
     {
       "jurisdiction": "Seattle",
@@ -1182,7 +1224,9 @@
       "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
       "address": "7142 47TH AVE SW",
       "issue_date": "2023-10-05",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.39277283,
+      "latitude": 47.53835472
     },
     {
       "jurisdiction": "Seattle",
@@ -1190,7 +1234,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9201 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33802836,
+      "latitude": 47.69608502
     },
     {
       "jurisdiction": "Seattle",
@@ -1198,7 +1244,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9227 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33795256,
+      "latitude": 47.69677791
     },
     {
       "jurisdiction": "Seattle",
@@ -1206,7 +1254,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9213 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3380333,
+      "latitude": 47.69641849
     },
     {
       "jurisdiction": "Seattle",
@@ -1214,7 +1264,9 @@
       "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
       "address": "518 N 61ST ST",
       "issue_date": "2022-08-08",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3520259,
+      "latitude": 47.67345757
     },
     {
       "jurisdiction": "Seattle",
@@ -1222,7 +1274,9 @@
       "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
       "address": "6257 43RD AVE NE",
       "issue_date": "2022-01-03",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.2825356,
+      "latitude": 47.67561479
     },
     {
       "jurisdiction": "Seattle",
@@ -1230,7 +1284,9 @@
       "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
       "address": "6037 ATLAS PL SW",
       "issue_date": "2022-03-16",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3973289,
+      "latitude": 47.54797311
     },
     {
       "jurisdiction": "Seattle",
@@ -1238,7 +1294,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9202 WOODLAWN AVE N",
       "issue_date": "2022-06-22",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33839926,
+      "latitude": 47.69612901
     },
     {
       "jurisdiction": "Seattle",
@@ -1246,7 +1304,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9207 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33803188,
+      "latitude": 47.69622992
     },
     {
       "jurisdiction": "Seattle",
@@ -1254,7 +1314,9 @@
       "neighborhood": "Lawton Park, Briarcliff, Southeast Magnolia, Carleton Park",
       "address": "2551 28TH AVE W",
       "issue_date": "2022-02-09",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.39331235,
+      "latitude": 47.64239188
     },
     {
       "jurisdiction": "Seattle",
@@ -1262,7 +1324,9 @@
       "neighborhood": "Loyal Heights, Adams, Whittier Heights, West Woodland, Sunset Hill, Golden Gardens, Shilshole, Ballard",
       "address": "7031 11TH AVE NW",
       "issue_date": "2022-02-09",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.37073088,
+      "latitude": 47.68047834
     },
     {
       "jurisdiction": "Seattle",
@@ -1270,7 +1334,9 @@
       "neighborhood": "Madrona, Harrison/Denny-Blaine, Minor, Leschi, Mann, Atlantic, Squire Park, Judkins Park, Central District, Colman, Garfield, Jackson Place",
       "address": "1126 M L KING JR WAY",
       "issue_date": "2022-01-26",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.29562509,
+      "latitude": 47.61239306
     },
     {
       "jurisdiction": "Seattle",
@@ -1278,7 +1344,9 @@
       "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
       "address": "8124 STONE AVE N",
       "issue_date": "2022-03-02",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.34156163,
+      "latitude": 47.68845836
     },
     {
       "jurisdiction": "Seattle",
@@ -1286,7 +1354,9 @@
       "neighborhood": "East Queen Anne, West Queen Anne, Lower Queen Anne, North Queen Anne, Uptown, Seattle Center",
       "address": "2665 13TH AVE W",
       "issue_date": "2022-02-17",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.37312326,
+      "latitude": 47.64469573
     },
     {
       "jurisdiction": "Seattle",
@@ -1294,7 +1364,9 @@
       "neighborhood": "Unknown",
       "address": "206 S BRANDON ST",
       "issue_date": "2022-03-21",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33180612,
+      "latitude": 47.55435618
     },
     {
       "jurisdiction": "Seattle",
@@ -1302,7 +1374,9 @@
       "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
       "address": "3036 NE 90TH ST",
       "issue_date": "2022-07-20",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.29451106,
+      "latitude": 47.69405478
     },
     {
       "jurisdiction": "Seattle",
@@ -1310,7 +1384,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "14332 MERIDIAN AVE N",
       "issue_date": "2022-01-11",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.3340075,
+      "latitude": 47.73328405
     },
     {
       "jurisdiction": "Seattle",
@@ -1318,7 +1394,9 @@
       "neighborhood": "Pike-Market, Belltown, International District, Central Business District, First Hill, Yesler Terrace, Pioneer Square, Denny Regrade, Denny Triangle, Commercial Core, West Edge, Pike Place Market, Chinatown, Little Saigon, ID",
       "address": "600 UNIVERSITY ST",
       "issue_date": "2022-02-16",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33230647,
+      "latitude": 47.60967251
     },
     {
       "jurisdiction": "Seattle",
@@ -1326,7 +1404,9 @@
       "neighborhood": "Brighton, Dunlap, Rainier Beach, Mount Baker, Columbia City, North Rainier, Lake Ridge, Rainier View, Columbia Heights",
       "address": "3810 S FERDINAND ST",
       "issue_date": "2022-05-03",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.28439243,
+      "latitude": 47.55805049
     },
     {
       "jurisdiction": "Seattle",
@@ -1334,7 +1414,9 @@
       "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
       "address": "4315 THACKERAY PL NE",
       "issue_date": "2022-01-04",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.32669484,
+      "latitude": 47.65941333
     },
     {
       "jurisdiction": "Seattle",
@@ -1342,7 +1424,9 @@
       "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
       "address": "5269 CALIFORNIA AVE SW",
       "issue_date": "",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.38737663,
+      "latitude": 47.55447507
     },
     {
       "jurisdiction": "Seattle",
@@ -1350,7 +1434,9 @@
       "neighborhood": "Seward Park, Lakewood, Hillman City",
       "address": "4828 S KENNY ST",
       "issue_date": "2022-01-05",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.27138149,
+      "latitude": 47.54931472
     },
     {
       "jurisdiction": "Seattle",
@@ -1358,7 +1444,9 @@
       "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
       "address": "9219 DENSMORE AVE N",
       "issue_date": "2022-06-13",
-      "intake_date": "2022-01-03"
+      "intake_date": "2022-01-03",
+      "longitude": -122.33794853,
+      "latitude": 47.69651312
     }
   ],
   "load_notes": [
