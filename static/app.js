@@ -1,48 +1,84 @@
-const COLORS = {
-  'New SFR': '#6d8fb3',
-  'New MF': '#9cb4c9',
-  'Other New': '#78a6a1',
-  'Demo': '#d8a45b'
+const state = {
+  meta: null,
+  summary: null,
+  selectedNeighborhood: 'all',
+  map: null,
+  mapLayer: null,
 };
-const state = { meta: null, summary: null, selectedNeighborhood: 'all', annualHitboxes: [], drillHitboxes: [], map: null, mapLayer: null };
+
 const byId = (id) => document.getElementById(id);
 
-function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function formatNumber(n) { return new Intl.NumberFormat().format(n || 0); }
-function queryString(obj) { return new URLSearchParams(obj).toString(); }
-async function fetchJson(url) { const r = await fetch(url); if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (m) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[m]));
+}
+
+function formatNumber(n) {
+  return new Intl.NumberFormat().format(Number(n || 0));
+}
+
+function queryString(obj) {
+  return new URLSearchParams(obj).toString();
+}
+
+async function fetchJson(url) {
+  const r = await fetch(url, { cache: 'no-store' });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
 
 function getFilters() {
+  const neighborhoodSelect = byId('neighborhood');
+  const selectedNeighborhood =
+    state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : (neighborhoodSelect?.value || 'all');
+
   return {
-    jurisdiction: byId('jurisdiction').value,
-    category: byId('category').value,
-    neighborhood: state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : byId('neighborhood').value,
-    start_year: byId('startYear').value,
-    end_year: byId('endYear').value,
-    address_query: byId('addressSearch').value.trim(),
+    jurisdiction: byId('jurisdiction')?.value || 'all',
+    category: byId('category')?.value || 'all',
+    neighborhood: selectedNeighborhood,
+    start_year: byId('startYear')?.value || '2022',
+    end_year: byId('endYear')?.value || '2026',
   };
 }
 
-function renderLegend(targetId) {
-  byId(targetId).innerHTML = ['New SFR', 'New MF', 'Other New', 'Demo']
-    .map((name) => `<span class="legend-item"><span class="legend-swatch" style="background:${COLORS[name]}"></span>${escapeHtml(name)}</span>`)
-    .join('');
-}
-
 function renderLoadMessages(notes, errors) {
-  byId('loadNotes').innerHTML = (notes || []).map(n => `<span class="note-pill">${escapeHtml(n)}</span>`).join('');
-  byId('loadErrors').innerHTML = (errors || []).map(e => `<div>${escapeHtml(e)}</div>`).join('');
+  const notesEl = byId('loadNotes');
+  const errorsEl = byId('loadErrors');
+  if (notesEl) {
+    notesEl.innerHTML = (notes || []).map(n => `<span class="note-pill">${escapeHtml(n)}</span>`).join('');
+  }
+  if (errorsEl) {
+    errorsEl.innerHTML = (errors || []).map(e => `<div>${escapeHtml(e)}</div>`).join('');
+  }
 }
 
 function populateNeighborhoods(items) {
   const select = byId('neighborhood');
+  const search = byId('neighborhoodSearch');
+  if (!select) return;
+
   const current = state.selectedNeighborhood === 'all' ? select.value : state.selectedNeighborhood;
   select.innerHTML = '<option value="all">All neighborhoods</option>';
+
   (items || []).forEach((n) => {
     const opt = document.createElement('option');
-    opt.value = n; opt.textContent = n; select.appendChild(opt);
+    opt.value = n;
+    opt.textContent = n;
+    select.appendChild(opt);
   });
-  if ([...select.options].some(o => o.value === current)) select.value = current;
+
+  const options = [...select.options];
+  if (options.some(o => o.value === current)) {
+    select.value = current;
+  } else {
+    select.value = 'all';
+    state.selectedNeighborhood = 'all';
+  }
+
+  if (search) {
+    search.value = state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : '';
+  }
 }
 
 async function loadMeta() {
@@ -54,144 +90,342 @@ async function loadMeta() {
 async function loadSummary() {
   state.summary = await fetchJson(`/api/summary?${queryString(getFilters())}`);
   renderLoadMessages(state.summary.load_notes || [], state.summary.load_errors || []);
-  renderCards(); renderAnnualChart(); renderNeighborhoodTable(); renderAnnualNeighborhoodTable(); renderDrilldownChart(); renderMap();
+  renderCards();
+  renderAnnualChart();
+  renderNeighborhoodTable();
+  renderAnnualNeighborhoodTable();
+  renderDrilldownChart();
+  renderSamples();
+  renderMap();
 }
 
 function renderCards() {
-  const c = state.summary.cards || {};
+  const cardsEl = byId('cards');
+  if (!cardsEl) return;
+  const c = state.summary?.cards || {};
   const cards = [
-    ['Total permits', c.total_permits], ['Seattle', c.seattle_permits], ['Bellevue', c.bellevue_permits],
-    ['Known neighborhoods', c.known_neighborhoods], ['All New', c.all_new], ['New MF', c.new_mf],
-    ['Other New', c.other_new], ['New SFR', c.new_sfr], ['Demo', c.demo],
+    ['Total permits', c.total_permits],
+    ['Seattle', c.seattle_permits],
+    ['Bellevue', c.bellevue_permits],
+    ['Known neighborhoods', c.known_neighborhoods],
+    ['All New', c.all_new ?? ((c.new_sfr || 0) + (c.new_mf || 0) + (c.other_new || 0))],
+    ['New MF', c.new_mf],
+    ['Other New', c.other_new],
+    ['Demo', c.demo],
   ];
-  byId('cards').innerHTML = cards.map(([label, value]) => `<article class="card"><div class="card-label">${escapeHtml(label)}</div><div class="card-value">${formatNumber(value)}</div></article>`).join('');
+
+  cardsEl.innerHTML = cards.map(([label, value]) => `
+    <article class="card">
+      <div class="card-label">${escapeHtml(label)}</div>
+      <div class="card-value">${formatNumber(value)}</div>
+    </article>
+  `).join('');
 }
 
-function drawGroupedBars(canvas, labels, series, readoutId, hitboxTarget) {
+function drawGroupedBars(canvas, labels, series, valueElId) {
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const w = canvas.width = canvas.clientWidth * window.devicePixelRatio;
-  const h = canvas.height = canvas.clientHeight * window.devicePixelRatio;
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  const cw = canvas.clientWidth, ch = canvas.clientHeight;
-  ctx.clearRect(0,0,cw,ch);
-  const margin = {left: 42, right: 18, top: 16, bottom: 32};
-  const plotW = cw - margin.left - margin.right, plotH = ch - margin.top - margin.bottom;
-  const maxVal = Math.max(1, ...series.flatMap(s => s.values));
-  ctx.strokeStyle = '#d6dee8'; ctx.fillStyle = '#6b7785'; ctx.font = '12px Arial';
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(300, Math.floor(rect.width));
+  const height = Math.max(220, Math.floor(rect.height || canvas.height || 260));
+  const ratio = window.devicePixelRatio || 1;
+
+  canvas.width = Math.floor(width * ratio);
+  canvas.height = Math.floor(height * ratio);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const margin = { left: 46, right: 20, top: 18, bottom: 40 };
+  const plotW = width - margin.left - margin.right;
+  const plotH = height - margin.top - margin.bottom;
+  const colors = ['#6d8fb3', '#9cb4c9', '#87a9a4', '#d8a45b'];
+
+  const allValues = series.flatMap(s => s.values);
+  const maxVal = Math.max(1, ...allValues, 0);
+
+  ctx.strokeStyle = '#d6dee8';
+  ctx.fillStyle = '#6b7785';
+  ctx.font = '12px Arial';
+
   for (let i = 0; i <= 4; i++) {
     const y = margin.top + plotH - (plotH * i / 4);
-    ctx.beginPath(); ctx.moveTo(margin.left, y); ctx.lineTo(cw - margin.right, y); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(margin.left, y);
+    ctx.lineTo(width - margin.right, y);
+    ctx.stroke();
     ctx.fillText(String(Math.round(maxVal * i / 4)), 8, y + 4);
   }
-  const groupW = plotW / Math.max(1, labels.length), barW = Math.min(18, (groupW - 12) / Math.max(1, series.length));
-  state[hitboxTarget] = [];
+
+  const groupW = plotW / Math.max(1, labels.length);
+  const barW = Math.min(22, Math.max(10, (groupW - 12) / Math.max(1, series.length)));
+  const hitboxes = [];
+
   labels.forEach((label, li) => {
     const gx = margin.left + li * groupW + 6;
-    series.forEach((s, si) => {
-      const val = s.values[li] || 0, barH = (val / maxVal) * plotH, x = gx + si * barW, y = margin.top + plotH - barH;
-      ctx.fillStyle = COLORS[s.name] || '#999'; ctx.fillRect(x, y, barW - 2, barH);
-      state[hitboxTarget].push({ x, y, w: barW - 2, h: barH, label, series: s.name, value: val, readoutId });
-    });
-    ctx.fillStyle = '#334155'; ctx.fillText(String(label), gx, ch - 8);
-  });
-}
 
-function attachBarClicks(canvas, hitboxTarget) {
+    series.forEach((s, si) => {
+      const val = Number(s.values[li] || 0);
+      const barH = (val / maxVal) * plotH;
+      const x = gx + si * barW;
+      const y = margin.top + plotH - barH;
+      ctx.fillStyle = colors[si % colors.length];
+      ctx.fillRect(x, y, barW - 2, barH);
+
+      hitboxes.push({
+        x, y, w: barW - 2, h: barH,
+        label, series: s.name, value: val
+      });
+    });
+
+    ctx.fillStyle = '#334155';
+    ctx.fillText(String(label), gx, height - 10);
+  });
+
   canvas.onclick = (evt) => {
-    const rect = canvas.getBoundingClientRect();
-    const x = evt.clientX - rect.left; const y = evt.clientY - rect.top;
-    const hit = (state[hitboxTarget] || []).find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
-    if (hit) byId(hit.readoutId).textContent = `${hit.label} • ${hit.series}: ${formatNumber(hit.value)}`;
+    const r = canvas.getBoundingClientRect();
+    const x = evt.clientX - r.left;
+    const y = evt.clientY - r.top;
+    const hit = hitboxes.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+    const valueEl = byId(valueElId);
+    if (!valueEl) return;
+    if (hit) {
+      valueEl.textContent = `${hit.label} • ${hit.series}: ${formatNumber(hit.value)}`;
+    } else {
+      valueEl.textContent = 'Click a bar for details.';
+    }
   };
 }
 
 function renderAnnualChart() {
-  const data = state.summary.annual_series || [];
-  drawGroupedBars(byId('annualChart'), data.map(r => r.year), [
-    {name: 'New SFR', values: data.map(r => r['New SFR'] || 0)},
-    {name: 'New MF', values: data.map(r => r['New MF'] || 0)},
-    {name: 'Other New', values: data.map(r => r['Other New'] || 0)},
-    {name: 'Demo', values: data.map(r => r['Demo'] || 0)},
-  ], 'annualReadout', 'annualHitboxes');
+  const data = state.summary?.annual_series || [];
+  drawGroupedBars(
+    byId('annualChart'),
+    data.map(r => r.year),
+    [
+      { name: 'New SFR', values: data.map(r => r['New SFR'] || 0) },
+      { name: 'New MF', values: data.map(r => r['New MF'] || 0) },
+      { name: 'Other New', values: data.map(r => r['Other New'] || 0) },
+      { name: 'Demo', values: data.map(r => r['Demo'] || 0) },
+    ],
+    'annualChartValue'
+  );
 }
 
 function renderDrilldownChart() {
-  const rows = state.summary.neighborhood_rows || [];
-  const current = state.selectedNeighborhood !== 'all' ? rows.find(r => r.neighborhood === state.selectedNeighborhood) : rows[0];
-  byId('drilldownTitle').textContent = current ? current.neighborhood : 'No neighborhood selected';
-  if (!current) return drawGroupedBars(byId('drilldownChart'), [], [], 'drilldownReadout', 'drillHitboxes');
-  const labels = Object.keys(current.years);
-  drawGroupedBars(byId('drilldownChart'), labels, [
-    {name: 'New SFR', values: labels.map(y => current.years[y]['New SFR'] || 0)},
-    {name: 'New MF', values: labels.map(y => current.years[y]['New MF'] || 0)},
-    {name: 'Other New', values: labels.map(y => current.years[y]['Other New'] || 0)},
-    {name: 'Demo', values: labels.map(y => current.years[y]['Demo'] || 0)},
-  ], 'drilldownReadout', 'drillHitboxes');
+  const rows = state.summary?.neighborhood_rows || [];
+  const current = state.selectedNeighborhood !== 'all'
+    ? rows.find(r => r.neighborhood === state.selectedNeighborhood)
+    : rows[0];
+
+  const title = byId('drilldownTitle');
+  if (title) title.textContent = current ? current.neighborhood : 'No neighborhood selected';
+
+  if (!current) {
+    drawGroupedBars(byId('drilldownChart'), [], [], 'drilldownChartValue');
+    return;
+  }
+
+  const labels = Object.keys(current.years || {});
+  drawGroupedBars(
+    byId('drilldownChart'),
+    labels,
+    [
+      { name: 'New SFR', values: labels.map(y => current.years[y]['New SFR'] || 0) },
+      { name: 'New MF', values: labels.map(y => current.years[y]['New MF'] || 0) },
+      { name: 'Other New', values: labels.map(y => current.years[y]['Other New'] || 0) },
+      { name: 'Demo', values: labels.map(y => current.years[y]['Demo'] || 0) },
+    ],
+    'drilldownChartValue'
+  );
+}
+
+function filteredSamples() {
+  const q = (byId('addressSearch')?.value || '').trim().toLowerCase();
+  const samples = state.summary?.samples || [];
+  if (!q) return samples;
+  return samples.filter(r => String(r.address || '').toLowerCase().includes(q));
 }
 
 function renderNeighborhoodTable() {
-  const tbody = byId('neighborhoodTable').querySelector('tbody');
-  const rows = state.summary.neighborhood_rows || [];
-  tbody.innerHTML = rows.slice(0, 40).map(r => `
-    <tr data-neighborhood="${escapeHtml(r.neighborhood)}" class="${r.neighborhood === state.selectedNeighborhood ? 'selected' : ''}">
-      <td>${escapeHtml(r.neighborhood)}</td><td>${formatNumber(r.totals.Total)}</td><td>${formatNumber((r.totals['New SFR'] || 0) + (r.totals['New MF'] || 0) + (r.totals['Other New'] || 0))}</td><td>${formatNumber(r.totals['New MF'])}</td><td>${formatNumber(r.totals['Other New'] || 0)}</td><td>${formatNumber(r.totals['Demo'])}</td>
-    </tr>`).join('');
-  tbody.querySelectorAll('tr').forEach((tr) => tr.addEventListener('click', async () => {
-    state.selectedNeighborhood = tr.dataset.neighborhood; byId('neighborhood').value = state.selectedNeighborhood; byId('neighborhoodSearch').value = state.selectedNeighborhood; await loadSummary();
-  }));
+  const table = byId('neighborhoodTable');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  const rows = state.summary?.neighborhood_rows || [];
+
+  tbody.innerHTML = rows.slice(0, 50).map(r => {
+    const allNew = (r.totals['New SFR'] || 0) + (r.totals['New MF'] || 0) + (r.totals['Other New'] || 0);
+    const selected = r.neighborhood === state.selectedNeighborhood ? 'selected' : '';
+    return `
+      <tr data-neighborhood="${escapeHtml(r.neighborhood)}" class="${selected}">
+        <td>${escapeHtml(r.neighborhood)}</td>
+        <td>${formatNumber(r.totals.Total)}</td>
+        <td>${formatNumber(allNew)}</td>
+        <td>${formatNumber(r.totals['New MF'])}</td>
+        <td>${formatNumber(r.totals['Other New'])}</td>
+        <td>${formatNumber(r.totals['Demo'])}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach((tr) => {
+    tr.addEventListener('click', async () => {
+      state.selectedNeighborhood = tr.dataset.neighborhood;
+      const sel = byId('neighborhood');
+      const search = byId('neighborhoodSearch');
+      if (sel) sel.value = state.selectedNeighborhood;
+      if (search) search.value = state.selectedNeighborhood;
+      await loadSummary();
+    });
+  });
 }
 
 function renderAnnualNeighborhoodTable() {
-  const rows = state.summary.neighborhood_rows || [];
-  const target = state.selectedNeighborhood !== 'all' ? rows.filter(r => r.neighborhood === state.selectedNeighborhood) : rows.slice(0, 12);
-  const years = (state.summary.annual_series || []).map(r => r.year);
-  byId('annualNeighborhoodTable').querySelector('thead').innerHTML = `<tr><th>Neighborhood</th>${years.map(y => `<th>${y}</th>`).join('')}<th>Total</th></tr>`;
-  byId('annualNeighborhoodTable').querySelector('tbody').innerHTML = target.map(r => `<tr><td>${escapeHtml(r.neighborhood)}</td>${years.map(y => `<td>${formatNumber(r.years[String(y)].Total)}</td>`).join('')}<td>${formatNumber(r.totals.Total)}</td></tr>`).join('');
+  const table = byId('annualNeighborhoodTable');
+  if (!table) return;
+  const rows = state.summary?.neighborhood_rows || [];
+  const target = state.selectedNeighborhood !== 'all'
+    ? rows.filter(r => r.neighborhood === state.selectedNeighborhood)
+    : rows.slice(0, 12);
+  const years = (state.summary?.annual_series || []).map(r => r.year);
+
+  table.querySelector('thead').innerHTML =
+    `<tr><th>Neighborhood</th>${years.map(y => `<th>${y}</th>`).join('')}<th>Total</th></tr>`;
+
+  table.querySelector('tbody').innerHTML = target.map(r => `
+    <tr>
+      <td>${escapeHtml(r.neighborhood)}</td>
+      ${years.map(y => `<td>${formatNumber((r.years[String(y)] || {}).Total || 0)}</td>`).join('')}
+      <td>${formatNumber(r.totals.Total)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderSamples() {
+  const panel = byId('recentExamplesPanel');
+  if (panel) panel.style.display = 'none';
+  const table = byId('sampleTable');
+  if (!table) return;
+  const tbody = table.querySelector('tbody');
+  tbody.innerHTML = filteredSamples().slice(0, 20).map(r => `
+    <tr>
+      <td>${escapeHtml(r.jurisdiction)}</td>
+      <td>${escapeHtml(r.category)}</td>
+      <td>${escapeHtml(r.neighborhood)}</td>
+      <td>${escapeHtml(r.address)}</td>
+      <td>${escapeHtml((r.issue_date || r.intake_date || '').slice(0, 10))}</td>
+    </tr>
+  `).join('');
+}
+
+function initMap() {
+  const mapEl = byId('permitMap');
+  if (!mapEl || typeof L === 'undefined' || state.map) return;
+  state.map = L.map(mapEl).setView([47.6062, -122.3321], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(state.map);
+  state.mapLayer = L.layerGroup().addTo(state.map);
 }
 
 function renderMap() {
-  const pts = state.summary.map_points || [];
+  const mapEl = byId('permitMap');
+  if (!mapEl) return;
+  initMap();
+  if (!state.map || !state.mapLayer) return;
+
   state.mapLayer.clearLayers();
-  const coords = pts.filter(p => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude)));
-  if (!coords.length) {
-    byId('mapStatus').textContent = 'No mapped points in this filtered view yet. Run the refreshed data script that includes latitude/longitude to populate markers.';
+
+  const q = (byId('addressSearch')?.value || '').trim().toLowerCase();
+  const points = (state.summary?.map_points || []).filter(p => {
+    if (!q) return true;
+    return String(p.address || '').toLowerCase().includes(q);
+  });
+
+  const withCoords = points.filter(p =>
+    p.latitude !== undefined && p.latitude !== null &&
+    p.longitude !== undefined && p.longitude !== null &&
+    !Number.isNaN(Number(p.latitude)) && !Number.isNaN(Number(p.longitude))
+  );
+
+  if (!withCoords.length) {
+    mapEl.innerHTML = '<div style="padding:20px;color:#6b7785;">No mappable points in this filtered view yet.</div>';
     return;
   }
-  coords.forEach((p) => {
-    const marker = L.circleMarker([Number(p.latitude), Number(p.longitude)], {
+
+  mapEl.innerHTML = '';
+  state.map.invalidateSize(true);
+
+  const bounds = [];
+  withCoords.slice(0, 300).forEach(p => {
+    const lat = Number(p.latitude);
+    const lng = Number(p.longitude);
+    bounds.push([lat, lng]);
+    L.circleMarker([lat, lng], {
       radius: 5,
-      color: COLORS[p.category] || '#4b5563',
-      weight: 2,
-      fillOpacity: 0.7
-    }).bindPopup(`<strong>${escapeHtml(p.category)}</strong><br>${escapeHtml(p.address)}<br>${escapeHtml(p.neighborhood || '')}`);
-    marker.addTo(state.mapLayer);
+      weight: 1,
+      color: '#355070',
+      fillColor: '#6d8fb3',
+      fillOpacity: 0.85
+    }).bindPopup(`
+      <strong>${escapeHtml(p.address || 'No address')}</strong><br/>
+      ${escapeHtml(p.jurisdiction || '')} • ${escapeHtml(p.category || '')}<br/>
+      ${escapeHtml(p.neighborhood || '')}
+    `).addTo(state.mapLayer);
   });
-  const group = L.featureGroup(state.mapLayer.getLayers());
-  state.map.fitBounds(group.getBounds().pad(0.15));
-  byId('mapStatus').textContent = `${formatNumber(coords.length)} points shown on the map.`;
+
+  if (bounds.length === 1) {
+    state.map.setView(bounds[0], 14);
+  } else {
+    state.map.fitBounds(bounds, { padding: [20, 20] });
+  }
 }
 
 function wireEvents() {
   ['jurisdiction', 'category', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
-    byId(id).addEventListener('change', async () => {
-      if (id === 'neighborhood') state.selectedNeighborhood = byId('neighborhood').value;
+    const el = byId(id);
+    if (!el) return;
+    el.addEventListener('change', async () => {
+      if (id === 'neighborhood') {
+        state.selectedNeighborhood = byId('neighborhood').value;
+      }
       await loadSummary();
     });
   });
-  byId('neighborhoodSearch').addEventListener('input', () => {
-    const q = byId('neighborhoodSearch').value.trim().toLowerCase();
-    const opts = [...byId('neighborhood').options];
-    const hit = opts.find(o => o.value !== 'all' && o.value.toLowerCase().includes(q));
-    if (hit) byId('neighborhood').value = hit.value;
-  });
-  byId('neighborhoodSearch').addEventListener('change', async () => { state.selectedNeighborhood = byId('neighborhood').value; await loadSummary(); });
-  byId('addressSearch').addEventListener('change', loadSummary);
-  byId('addressSearch').addEventListener('keyup', (e) => { if (e.key === 'Enter') loadSummary(); });
-  attachBarClicks(byId('annualChart'), 'annualHitboxes');
-  attachBarClicks(byId('drilldownChart'), 'drillHitboxes');
+
+  const neighborhoodSearch = byId('neighborhoodSearch');
+  if (neighborhoodSearch) {
+    neighborhoodSearch.addEventListener('input', () => {
+      const q = neighborhoodSearch.value.trim().toLowerCase();
+      const select = byId('neighborhood');
+      if (!select) return;
+      const hit = [...select.options].find(o => o.value !== 'all' && o.value.toLowerCase().includes(q));
+      if (hit) select.value = hit.value;
+    });
+    neighborhoodSearch.addEventListener('change', async () => {
+      const select = byId('neighborhood');
+      if (!select) return;
+      state.selectedNeighborhood = select.value;
+      await loadSummary();
+    });
+  }
+
+  const addressSearch = byId('addressSearch');
+  if (addressSearch) {
+    addressSearch.addEventListener('input', () => {
+      renderSamples();
+      renderMap();
+    });
+  }
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  renderLegend('annualLegend'); renderLegend('drilldownLegend'); initMap(); wireEvents();
-  try { await loadMeta(); await loadSummary(); } catch (err) { renderLoadMessages([], [err.message || String(err)]); }
+  wireEvents();
+  try {
+    await loadMeta();
+    await loadSummary();
+  } catch (err) {
+    renderLoadMessages([], [err.message || String(err)]);
+    console.error(err);
+  }
 });
