@@ -291,51 +291,83 @@ def fetch_bellevue_rows():
     out = []
     seen_columns = set()
     examined = 0
+    kept_with_year = 0
     dropped_examples = []
+    no_date_examples = []
     for r in stream_csv_dicts(BELLEVUE_PERMITS_CSV):
         examined += 1
         seen_columns.update(r.keys())
 
-        issue_dt = parse_dt(pick_first(r, ['ISSUEDATE', 'ISSUE_DATE', 'ISSUED DATE']))
-        intake_dt = parse_dt(pick_first(r, ['APPLICATIONDATE', 'APPLIEDDATE', 'APPLIED DATE', 'APPLICATION_DATE']))
+        issue_dt = parse_dt(pick_first(r, ['IssueDate', 'IssuedDate', 'PermitIssueDate']))
+        intake_dt = parse_dt(pick_first(r, ['ApplicationDate', 'IntakeDate', 'AppliedDate', 'PermitApplicationDate', 'EffectiveDate', 'ReadyForReviewDate']))
         year_dt = issue_dt or intake_dt
         if not year_dt or year_dt.year not in YEARS:
+            if len(no_date_examples) < 25:
+                no_date_examples.append({
+                    'issue_raw': pick_first(r, ['IssueDate', 'IssuedDate', 'PermitIssueDate']),
+                    'intake_raw': pick_first(r, ['ApplicationDate', 'IntakeDate', 'AppliedDate', 'PermitApplicationDate', 'EffectiveDate', 'ReadyForReviewDate']),
+                    'permit_type': pick_first(r, ['PermitType', 'TypeDetailNames']),
+                    'work_detail': pick_first(r, ['WorkDetail']),
+                })
             continue
+        kept_with_year += 1
 
-        text = ' '.join(filter(None, [
-            normalize(pick_first(r, ['PERMITTYPE', 'PERMIT TYPE', 'PERMITTYPEDESCRIPTION', 'PERMIT TYPE DESCRIPTION'])),
-            normalize(pick_first(r, ['WORKCLASS', 'WORK CLASS', 'WORKTYPE', 'WORK TYPE'])),
-            normalize(pick_first(r, ['DESCRIPTION', 'WORKDESCRIPTION', 'WORK DESCRIPTION', 'PROJECTDESCRIPTION', 'PROJECT DESCRIPTION'])),
-            normalize(pick_first(r, ['STRUCTURETYPE', 'STRUCTURE TYPE', 'PROJECTTYPE', 'PROJECT TYPE'])),
-        ]))
-        category = classify(text)
+        address = normalize(pick_first(r, ['WorkLocationFullAddress', 'WorkLocationAddressID', 'Address', 'SiteAddress', 'FullAddress', 'StreetAddress']))
+        neighborhood = clean_neighborhood(pick_first(r, ['NeighborhoodNames', 'NeighborhoodClusters', 'NeighborhoodArea', 'Neighborhood', 'AreaName', 'PlanningArea', 'SubArea']))
+
+        permit_text = ' '.join(filter(None, [
+            normalize(pick_first(r, ['PermitType', 'TypeDetailNames', 'StatusDescription', 'Status'])),
+            normalize(pick_first(r, ['WorkDetail'])),
+            address,
+            neighborhood,
+        ])).strip()
+        category = classify(permit_text)
+
+        # Bellevue-specific fallback: use PermitType/TypeDetailNames/WorkDetail like Seattle's broad logic.
         if not category:
-            if len(dropped_examples) < 50:
+            low = permit_text.lower()
+            if any(k in low for k in ['demol', 'demo', 'teardown', 'raze', 'remove structure']):
+                category = 'Demo'
+            elif any(k in low for k in ['new', 'construct', 'construction', 'addition', 'building']) and any(k in low for k in ['single family', 'single-family', 'sfr', 'one-family', 'detached']):
+                category = 'New SFR'
+            elif any(k in low for k in ['new', 'construct', 'construction', 'addition', 'building']) and any(k in low for k in ['multi', 'apartment', 'townhouse', 'townhome', 'condo', 'duplex', 'triplex', 'fourplex', 'mixed use', 'mixed-use', 'live/work']):
+                category = 'New MF'
+            elif any(k in low for k in ['new', 'construct', 'construction', 'addition', 'building']):
+                category = 'Other New'
+
+        if not category:
+            if len(dropped_examples) < 60:
                 dropped_examples.append({
                     'source': 'Bellevue',
-                    'address': normalize(pick_first(r, ['SITEADDRESS', 'SITE ADDRESS', 'ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'])),
-                    'text': text[:300],
+                    'permit_text': permit_text[:350],
+                    'address': address,
+                    'neighborhood': neighborhood,
+                    'permit_type': pick_first(r, ['PermitType']),
+                    'type_detail_names': pick_first(r, ['TypeDetailNames']),
+                    'work_detail': pick_first(r, ['WorkDetail']),
                 })
             continue
 
-        neighborhood = clean_neighborhood(pick_first(r, ['NEIGHBORHOODAREA', 'NEIGHBORHOOD AREA', 'NEIGHBORHOOD', 'AREA_NAME']))
+        lat = pick_first(r, ['Latitude', 'Y', 'YCoord'])
+        lon = pick_first(r, ['Longitude', 'XCoord', 'X', '﻿X'])
         try:
-            latitude = float(pick_first(r, ['Latitude', 'LATITUDE', 'lat']) or '')
+            lat = float(lat) if lat not in (None, '', 'NULL') else None
         except Exception:
-            latitude = None
+            lat = None
         try:
-            longitude = float(pick_first(r, ['Longitude', 'LONGITUDE', 'lon', 'lng']) or '')
+            lon = float(lon) if lon not in (None, '', 'NULL') else None
         except Exception:
-            longitude = None
+            lon = None
+
         out.append({
             'jurisdiction': 'Bellevue',
             'category': category,
             'neighborhood': neighborhood,
-            'address': normalize(pick_first(r, ['SITEADDRESS', 'SITE ADDRESS', 'ADDRESS', 'FULLADDRESS', 'FULL ADDRESS'])),
+            'address': address,
             'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
             'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
-            'longitude': longitude,
-            'latitude': latitude,
+            'latitude': lat,
+            'longitude': lon,
         })
 
         if examined % 5000 == 0:
@@ -343,9 +375,11 @@ def fetch_bellevue_rows():
 
     return out, {
         'rows_examined': examined,
+        'rows_with_target_year': kept_with_year,
         'rows_kept': len(out),
-        'columns_seen': sorted(seen_columns)[:40],
+        'columns_seen': sorted(seen_columns)[:120],
         'dropped_examples': dropped_examples,
+        'no_date_examples': no_date_examples,
     }
 
 
