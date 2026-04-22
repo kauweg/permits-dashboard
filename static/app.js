@@ -2,8 +2,6 @@ const state = {
   meta: null,
   summary: null,
   selectedNeighborhood: 'all',
-  map: null,
-  mapLayer: null,
 };
 
 const byId = (id) => document.getElementById(id);
@@ -45,6 +43,7 @@ function getFilters() {
 function renderLoadMessages(notes, errors) {
   const notesEl = byId('loadNotes');
   const errorsEl = byId('loadErrors');
+
   if (notesEl) {
     notesEl.innerHTML = (notes || []).map(n => `<span class="note-pill">${escapeHtml(n)}</span>`).join('');
   }
@@ -96,12 +95,12 @@ async function loadSummary() {
   renderAnnualNeighborhoodTable();
   renderDrilldownChart();
   renderSamples();
-  renderMap();
 }
 
 function renderCards() {
   const cardsEl = byId('cards');
   if (!cardsEl) return;
+
   const c = state.summary?.cards || {};
   const cards = [
     ['Total permits', c.total_permits],
@@ -124,6 +123,7 @@ function renderCards() {
 
 function drawGroupedBars(canvas, labels, series, valueElId) {
   if (!canvas) return;
+
   const ctx = canvas.getContext('2d');
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(300, Math.floor(rect.width));
@@ -188,6 +188,7 @@ function drawGroupedBars(canvas, labels, series, valueElId) {
     const hit = hitboxes.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
     const valueEl = byId(valueElId);
     if (!valueEl) return;
+
     if (hit) {
       valueEl.textContent = `${hit.label} • ${hit.series}: ${formatNumber(hit.value)}`;
     } else {
@@ -239,16 +240,10 @@ function renderDrilldownChart() {
   );
 }
 
-function filteredSamples() {
-  const q = (byId('addressSearch')?.value || '').trim().toLowerCase();
-  const samples = state.summary?.samples || [];
-  if (!q) return samples;
-  return samples.filter(r => String(r.address || '').toLowerCase().includes(q));
-}
-
 function renderNeighborhoodTable() {
   const table = byId('neighborhoodTable');
   if (!table) return;
+
   const tbody = table.querySelector('tbody');
   const rows = state.summary?.neighborhood_rows || [];
 
@@ -282,6 +277,7 @@ function renderNeighborhoodTable() {
 function renderAnnualNeighborhoodTable() {
   const table = byId('annualNeighborhoodTable');
   if (!table) return;
+
   const rows = state.summary?.neighborhood_rows || [];
   const target = state.selectedNeighborhood !== 'all'
     ? rows.filter(r => r.neighborhood === state.selectedNeighborhood)
@@ -303,10 +299,14 @@ function renderAnnualNeighborhoodTable() {
 function renderSamples() {
   const panel = byId('recentExamplesPanel');
   if (panel) panel.style.display = 'none';
+
   const table = byId('sampleTable');
   if (!table) return;
+
   const tbody = table.querySelector('tbody');
-  tbody.innerHTML = filteredSamples().slice(0, 20).map(r => `
+  const samples = state.summary?.samples || [];
+
+  tbody.innerHTML = samples.slice(0, 20).map(r => `
     <tr>
       <td>${escapeHtml(r.jurisdiction)}</td>
       <td>${escapeHtml(r.category)}</td>
@@ -317,74 +317,11 @@ function renderSamples() {
   `).join('');
 }
 
-function initMap() {
-  const mapEl = byId('permitMap');
-  if (!mapEl || typeof L === 'undefined' || state.map) return;
-  state.map = L.map(mapEl).setView([47.6062, -122.3321], 11);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(state.map);
-  state.mapLayer = L.layerGroup().addTo(state.map);
-}
-
-function renderMap() {
-  const mapEl = byId('permitMap');
-  if (!mapEl) return;
-  initMap();
-  if (!state.map || !state.mapLayer) return;
-
-  state.mapLayer.clearLayers();
-
-  const q = (byId('addressSearch')?.value || '').trim().toLowerCase();
-  const points = (state.summary?.map_points || []).filter(p => {
-    if (!q) return true;
-    return String(p.address || '').toLowerCase().includes(q);
-  });
-
-  const withCoords = points.filter(p =>
-    p.latitude !== undefined && p.latitude !== null &&
-    p.longitude !== undefined && p.longitude !== null &&
-    !Number.isNaN(Number(p.latitude)) && !Number.isNaN(Number(p.longitude))
-  );
-
-  if (!withCoords.length) {
-    mapEl.innerHTML = '<div style="padding:20px;color:#6b7785;">No mappable points in this filtered view yet.</div>';
-    return;
-  }
-
-  mapEl.innerHTML = '';
-  state.map.invalidateSize(true);
-
-  const bounds = [];
-  withCoords.slice(0, 300).forEach(p => {
-    const lat = Number(p.latitude);
-    const lng = Number(p.longitude);
-    bounds.push([lat, lng]);
-    L.circleMarker([lat, lng], {
-      radius: 5,
-      weight: 1,
-      color: '#355070',
-      fillColor: '#6d8fb3',
-      fillOpacity: 0.85
-    }).bindPopup(`
-      <strong>${escapeHtml(p.address || 'No address')}</strong><br/>
-      ${escapeHtml(p.jurisdiction || '')} • ${escapeHtml(p.category || '')}<br/>
-      ${escapeHtml(p.neighborhood || '')}
-    `).addTo(state.mapLayer);
-  });
-
-  if (bounds.length === 1) {
-    state.map.setView(bounds[0], 14);
-  } else {
-    state.map.fitBounds(bounds, { padding: [20, 20] });
-  }
-}
-
 function wireEvents() {
   ['jurisdiction', 'category', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
     const el = byId(id);
     if (!el) return;
+
     el.addEventListener('change', async () => {
       if (id === 'neighborhood') {
         state.selectedNeighborhood = byId('neighborhood').value;
@@ -402,19 +339,12 @@ function wireEvents() {
       const hit = [...select.options].find(o => o.value !== 'all' && o.value.toLowerCase().includes(q));
       if (hit) select.value = hit.value;
     });
+
     neighborhoodSearch.addEventListener('change', async () => {
       const select = byId('neighborhood');
       if (!select) return;
       state.selectedNeighborhood = select.value;
       await loadSummary();
-    });
-  }
-
-  const addressSearch = byId('addressSearch');
-  if (addressSearch) {
-    addressSearch.addEventListener('input', () => {
-      renderSamples();
-      renderMap();
     });
   }
 }
