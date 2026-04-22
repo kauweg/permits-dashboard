@@ -1,0 +1,16 @@
+{
+  "neighborhoods": [
+    "Ballard",
+    "Bellevue Downtown",
+    "Capitol Hill",
+    "Eastgate",
+    "Queen Anne",
+    "Wallingford",
+    "Wilburton"
+  ],
+  "load_notes": [
+    "Serving precomputed starter dataset for instant startup.",
+    "Run refresh_data.py locally to rebuild from live Seattle and Bellevue sources."
+  ],
+  "load_errors": []
+}
