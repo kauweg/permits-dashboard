@@ -1,46 +1,1373 @@
 {
+  "generated_at": "2026-04-22T17:04:55.999127+00:00",
   "cards": {
-    "total_permits": 102,
-    "seattle_permits": 62,
-    "bellevue_permits": 40,
-    "known_neighborhoods": 7,
-    "new_sfr": 39,
-    "new_mf": 45,
-    "demo": 18
+    "total_permits": 21484,
+    "seattle_permits": 21484,
+    "bellevue_permits": 0,
+    "known_neighborhoods": 18,
+    "new_sfr": 53,
+    "new_mf": 15039,
+    "other_new": 3812,
+    "all_new": 18904,
+    "demo": 2580
   },
   "annual_series": [
-    {"year": 2022, "New SFR": 7, "New MF": 8, "Demo": 3, "Total": 18},
-    {"year": 2023, "New SFR": 8, "New MF": 9, "Demo": 3, "Total": 20},
-    {"year": 2024, "New SFR": 8, "New MF": 11, "Demo": 4, "Total": 23},
-    {"year": 2025, "New SFR": 9, "New MF": 10, "Demo": 4, "Total": 23},
-    {"year": 2026, "New SFR": 7, "New MF": 7, "Demo": 4, "Total": 18}
+    {
+      "year": 2022,
+      "New SFR": 2,
+      "New MF": 2304,
+      "Other New": 636,
+      "Demo": 485,
+      "Total": 3427
+    },
+    {
+      "year": 2023,
+      "New SFR": 10,
+      "New MF": 3137,
+      "Other New": 818,
+      "Demo": 587,
+      "Total": 4552
+    },
+    {
+      "year": 2024,
+      "New SFR": 17,
+      "New MF": 3287,
+      "Other New": 886,
+      "Demo": 572,
+      "Total": 4762
+    },
+    {
+      "year": 2025,
+      "New SFR": 19,
+      "New MF": 4339,
+      "Other New": 1062,
+      "Demo": 677,
+      "Total": 6097
+    },
+    {
+      "year": 2026,
+      "New SFR": 5,
+      "New MF": 1972,
+      "Other New": 410,
+      "Demo": 259,
+      "Total": 2646
+    }
   ],
   "neighborhood_rows": [
-    {"neighborhood":"Bellevue Downtown","jurisdictions":["Bellevue"],"years":{"2022":{"New SFR":1,"New MF":4,"Demo":1,"Total":6},"2023":{"New SFR":1,"New MF":5,"Demo":1,"Total":7},"2024":{"New SFR":1,"New MF":6,"Demo":1,"Total":8},"2025":{"New SFR":1,"New MF":5,"Demo":1,"Total":7},"2026":{"New SFR":0,"New MF":3,"Demo":1,"Total":4}},"totals":{"New SFR":4,"New MF":23,"Demo":5,"Total":32}},
-    {"neighborhood":"Ballard","jurisdictions":["Seattle"],"years":{"2022":{"New SFR":2,"New MF":1,"Demo":1,"Total":4},"2023":{"New SFR":2,"New MF":1,"Demo":1,"Total":4},"2024":{"New SFR":2,"New MF":1,"Demo":1,"Total":4},"2025":{"New SFR":3,"New MF":1,"Demo":1,"Total":5},"2026":{"New SFR":2,"New MF":1,"Demo":1,"Total":4}},"totals":{"New SFR":11,"New MF":5,"Demo":5,"Total":21}},
-    {"neighborhood":"Capitol Hill","jurisdictions":["Seattle"],"years":{"2022":{"New SFR":0,"New MF":2,"Demo":0,"Total":2},"2023":{"New SFR":0,"New MF":2,"Demo":0,"Total":2},"2024":{"New SFR":0,"New MF":3,"Demo":1,"Total":4},"2025":{"New SFR":0,"New MF":2,"Demo":1,"Total":3},"2026":{"New SFR":0,"New MF":2,"Demo":1,"Total":3}},"totals":{"New SFR":0,"New MF":11,"Demo":3,"Total":14}},
-    {"neighborhood":"Queen Anne","jurisdictions":["Seattle"],"years":{"2022":{"New SFR":1,"New MF":1,"Demo":1,"Total":3},"2023":{"New SFR":2,"New MF":1,"Demo":0,"Total":3},"2024":{"New SFR":1,"New MF":1,"Demo":1,"Total":3},"2025":{"New SFR":1,"New MF":1,"Demo":1,"Total":3},"2026":{"New SFR":1,"New MF":1,"Demo":0,"Total":2}},"totals":{"New SFR":6,"New MF":5,"Demo":3,"Total":14}},
-    {"neighborhood":"Wilburton","jurisdictions":["Bellevue"],"years":{"2022":{"New SFR":1,"New MF":1,"Demo":0,"Total":2},"2023":{"New SFR":1,"New MF":1,"Demo":0,"Total":2},"2024":{"New SFR":1,"New MF":1,"Demo":1,"Total":3},"2025":{"New SFR":1,"New MF":1,"Demo":0,"Total":2},"2026":{"New SFR":1,"New MF":1,"Demo":1,"Total":3}},"totals":{"New SFR":5,"New MF":5,"Demo":2,"Total":12}},
-    {"neighborhood":"Eastgate","jurisdictions":["Bellevue"],"years":{"2022":{"New SFR":1,"New MF":0,"Demo":0,"Total":1},"2023":{"New SFR":1,"New MF":0,"Demo":1,"Total":2},"2024":{"New SFR":1,"New MF":0,"Demo":0,"Total":1},"2025":{"New SFR":1,"New MF":0,"Demo":1,"Total":2},"2026":{"New SFR":1,"New MF":0,"Demo":0,"Total":1}},"totals":{"New SFR":5,"New MF":0,"Demo":2,"Total":7}},
-    {"neighborhood":"Wallingford","jurisdictions":["Seattle"],"years":{"2022":{"New SFR":2,"New MF":0,"Demo":0,"Total":2},"2023":{"New SFR":2,"New MF":0,"Demo":0,"Total":2},"2024":{"New SFR":2,"New MF":0,"Demo":0,"Total":2},"2025":{"New SFR":2,"New MF":0,"Demo":0,"Total":2},"2026":{"New SFR":2,"New MF":0,"Demo":1,"Total":3}},"totals":{"New SFR":10,"New MF":0,"Demo":1,"Total":11}}
+    {
+      "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 261,
+          "Other New": 15,
+          "Demo": 36,
+          "Total": 312
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 356,
+          "Other New": 17,
+          "Demo": 40,
+          "Total": 413
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 345,
+          "Other New": 13,
+          "Demo": 47,
+          "Total": 405
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 465,
+          "Other New": 20,
+          "Demo": 59,
+          "Total": 544
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 224,
+          "Other New": 14,
+          "Demo": 34,
+          "Total": 272
+        }
+      },
+      "totals": {
+        "New SFR": 0,
+        "New MF": 1651,
+        "Other New": 79,
+        "Demo": 216,
+        "Total": 1946
+      }
+    },
+    {
+      "neighborhood": "Unknown",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 162,
+          "Other New": 81,
+          "Demo": 39,
+          "Total": 282
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 236,
+          "Other New": 113,
+          "Demo": 50,
+          "Total": 399
+        },
+        "2024": {
+          "New SFR": 2,
+          "New MF": 263,
+          "Other New": 133,
+          "Demo": 62,
+          "Total": 460
+        },
+        "2025": {
+          "New SFR": 2,
+          "New MF": 278,
+          "Other New": 127,
+          "Demo": 44,
+          "Total": 451
+        },
+        "2026": {
+          "New SFR": 1,
+          "New MF": 119,
+          "Other New": 66,
+          "Demo": 15,
+          "Total": 201
+        }
+      },
+      "totals": {
+        "New SFR": 5,
+        "New MF": 1058,
+        "Other New": 520,
+        "Demo": 210,
+        "Total": 1793
+      }
+    },
+    {
+      "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 214,
+          "Other New": 23,
+          "Demo": 41,
+          "Total": 278
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 255,
+          "Other New": 43,
+          "Demo": 48,
+          "Total": 347
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 322,
+          "Other New": 37,
+          "Demo": 54,
+          "Total": 413
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 412,
+          "Other New": 39,
+          "Demo": 90,
+          "Total": 541
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 168,
+          "Other New": 17,
+          "Demo": 27,
+          "Total": 212
+        }
+      },
+      "totals": {
+        "New SFR": 1,
+        "New MF": 1371,
+        "Other New": 159,
+        "Demo": 260,
+        "Total": 1791
+      }
+    },
+    {
+      "neighborhood": "Pike-Market, Belltown, International District, Central Business District, First Hill, Yesler Terrace, Pioneer Square, Denny Regrade, Denny Triangle, Commercial Core, West Edge, Pike Place Market, Chinatown, Little Saigon, ID",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 73,
+          "Other New": 209,
+          "Demo": 13,
+          "Total": 295
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 104,
+          "Other New": 266,
+          "Demo": 13,
+          "Total": 383
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 63,
+          "Other New": 316,
+          "Demo": 13,
+          "Total": 393
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 72,
+          "Other New": 364,
+          "Demo": 16,
+          "Total": 452
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 35,
+          "Other New": 137,
+          "Demo": 3,
+          "Total": 175
+        }
+      },
+      "totals": {
+        "New SFR": 1,
+        "New MF": 347,
+        "Other New": 1292,
+        "Demo": 58,
+        "Total": 1698
+      }
+    },
+    {
+      "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 191,
+          "Other New": 14,
+          "Demo": 55,
+          "Total": 260
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 245,
+          "Other New": 37,
+          "Demo": 55,
+          "Total": 337
+        },
+        "2024": {
+          "New SFR": 2,
+          "New MF": 265,
+          "Other New": 34,
+          "Demo": 52,
+          "Total": 353
+        },
+        "2025": {
+          "New SFR": 4,
+          "New MF": 401,
+          "Other New": 51,
+          "Demo": 66,
+          "Total": 522
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 150,
+          "Other New": 23,
+          "Demo": 17,
+          "Total": 190
+        }
+      },
+      "totals": {
+        "New SFR": 6,
+        "New MF": 1252,
+        "Other New": 159,
+        "Demo": 245,
+        "Total": 1662
+      }
+    },
+    {
+      "neighborhood": "Broadview, Bitter Lake, North Beach/Blue Ridge, Crown Hill, Greenwood",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 202,
+          "Other New": 9,
+          "Demo": 24,
+          "Total": 235
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 270,
+          "Other New": 21,
+          "Demo": 37,
+          "Total": 328
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 302,
+          "Other New": 18,
+          "Demo": 50,
+          "Total": 370
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 389,
+          "Other New": 23,
+          "Demo": 58,
+          "Total": 470
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 209,
+          "Other New": 6,
+          "Demo": 23,
+          "Total": 238
+        }
+      },
+      "totals": {
+        "New SFR": 0,
+        "New MF": 1372,
+        "Other New": 77,
+        "Demo": 192,
+        "Total": 1641
+      }
+    },
+    {
+      "neighborhood": "Loyal Heights, Adams, Whittier Heights, West Woodland, Sunset Hill, Golden Gardens, Shilshole, Ballard",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 1,
+          "New MF": 177,
+          "Other New": 18,
+          "Demo": 55,
+          "Total": 251
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 246,
+          "Other New": 33,
+          "Demo": 69,
+          "Total": 349
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 251,
+          "Other New": 22,
+          "Demo": 53,
+          "Total": 326
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 312,
+          "Other New": 23,
+          "Demo": 49,
+          "Total": 384
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 117,
+          "Other New": 10,
+          "Demo": 26,
+          "Total": 153
+        }
+      },
+      "totals": {
+        "New SFR": 2,
+        "New MF": 1103,
+        "Other New": 106,
+        "Demo": 252,
+        "Total": 1463
+      }
+    },
+    {
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 144,
+          "Other New": 38,
+          "Demo": 37,
+          "Total": 219
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 177,
+          "Other New": 36,
+          "Demo": 33,
+          "Total": 246
+        },
+        "2024": {
+          "New SFR": 2,
+          "New MF": 177,
+          "Other New": 45,
+          "Demo": 74,
+          "Total": 298
+        },
+        "2025": {
+          "New SFR": 2,
+          "New MF": 253,
+          "Other New": 41,
+          "Demo": 41,
+          "Total": 337
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 150,
+          "Other New": 22,
+          "Demo": 18,
+          "Total": 190
+        }
+      },
+      "totals": {
+        "New SFR": 4,
+        "New MF": 901,
+        "Other New": 182,
+        "Demo": 203,
+        "Total": 1290
+      }
+    },
+    {
+      "neighborhood": "Madrona, Harrison/Denny-Blaine, Minor, Leschi, Mann, Atlantic, Squire Park, Judkins Park, Central District, Colman, Garfield, Jackson Place",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 143,
+          "Other New": 23,
+          "Demo": 27,
+          "Total": 193
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 203,
+          "Other New": 24,
+          "Demo": 32,
+          "Total": 260
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 187,
+          "Other New": 20,
+          "Demo": 29,
+          "Total": 237
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 308,
+          "Other New": 47,
+          "Demo": 41,
+          "Total": 396
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 93,
+          "Other New": 8,
+          "Demo": 12,
+          "Total": 113
+        }
+      },
+      "totals": {
+        "New SFR": 2,
+        "New MF": 934,
+        "Other New": 122,
+        "Demo": 141,
+        "Total": 1199
+      }
+    },
+    {
+      "neighborhood": "Brighton, Dunlap, Rainier Beach, Mount Baker, Columbia City, North Rainier, Lake Ridge, Rainier View, Columbia Heights",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 145,
+          "Other New": 19,
+          "Demo": 29,
+          "Total": 193
+        },
+        "2023": {
+          "New SFR": 4,
+          "New MF": 195,
+          "Other New": 13,
+          "Demo": 35,
+          "Total": 247
+        },
+        "2024": {
+          "New SFR": 3,
+          "New MF": 219,
+          "Other New": 29,
+          "Demo": 30,
+          "Total": 281
+        },
+        "2025": {
+          "New SFR": 2,
+          "New MF": 272,
+          "Other New": 32,
+          "Demo": 29,
+          "Total": 335
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 104,
+          "Other New": 11,
+          "Demo": 13,
+          "Total": 128
+        }
+      },
+      "totals": {
+        "New SFR": 9,
+        "New MF": 935,
+        "Other New": 104,
+        "Demo": 136,
+        "Total": 1184
+      }
+    },
+    {
+      "neighborhood": "East Queen Anne, West Queen Anne, Lower Queen Anne, North Queen Anne, Uptown, Seattle Center",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 79,
+          "Other New": 19,
+          "Demo": 24,
+          "Total": 122
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 157,
+          "Other New": 23,
+          "Demo": 25,
+          "Total": 205
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 180,
+          "Other New": 28,
+          "Demo": 13,
+          "Total": 221
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 224,
+          "Other New": 52,
+          "Demo": 32,
+          "Total": 308
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 137,
+          "Other New": 14,
+          "Demo": 23,
+          "Total": 174
+        }
+      },
+      "totals": {
+        "New SFR": 0,
+        "New MF": 777,
+        "Other New": 136,
+        "Demo": 117,
+        "Total": 1030
+      }
+    },
+    {
+      "neighborhood": "Victory Heights, Matthews Beach, Meadowbrook, Olympic Hills, Cedar Park",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 89,
+          "Other New": 8,
+          "Demo": 19,
+          "Total": 116
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 142,
+          "Other New": 14,
+          "Demo": 23,
+          "Total": 179
+        },
+        "2024": {
+          "New SFR": 3,
+          "New MF": 171,
+          "Other New": 12,
+          "Demo": 12,
+          "Total": 198
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 239,
+          "Other New": 13,
+          "Demo": 35,
+          "Total": 287
+        },
+        "2026": {
+          "New SFR": 1,
+          "New MF": 124,
+          "Other New": 3,
+          "Demo": 13,
+          "Total": 141
+        }
+      },
+      "totals": {
+        "New SFR": 4,
+        "New MF": 765,
+        "Other New": 50,
+        "Demo": 102,
+        "Total": 921
+      }
+    },
+    {
+      "neighborhood": "North Beacon Hill, Mid-Beacon Hill, South Beacon Hill, Holly Park, Jefferson Park, New Holly",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 125,
+          "Other New": 16,
+          "Demo": 21,
+          "Total": 162
+        },
+        "2023": {
+          "New SFR": 1,
+          "New MF": 135,
+          "Other New": 26,
+          "Demo": 45,
+          "Total": 207
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 148,
+          "Other New": 17,
+          "Demo": 17,
+          "Total": 183
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 194,
+          "Other New": 16,
+          "Demo": 22,
+          "Total": 232
+        },
+        "2026": {
+          "New SFR": 1,
+          "New MF": 82,
+          "Other New": 9,
+          "Demo": 6,
+          "Total": 98
+        }
+      },
+      "totals": {
+        "New SFR": 3,
+        "New MF": 684,
+        "Other New": 84,
+        "Demo": 111,
+        "Total": 882
+      }
+    },
+    {
+      "neighborhood": "Highland Park, North Delridge, Riverview, High Point, South Delridge, Roxhill, Westwood, Highland Park, White Center, Avalon, Luna Park, Pigeon Point",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 98,
+          "Other New": 12,
+          "Demo": 12,
+          "Total": 122
+        },
+        "2023": {
+          "New SFR": 2,
+          "New MF": 146,
+          "Other New": 18,
+          "Demo": 20,
+          "Total": 186
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 135,
+          "Other New": 12,
+          "Demo": 23,
+          "Total": 171
+        },
+        "2025": {
+          "New SFR": 8,
+          "New MF": 172,
+          "Other New": 26,
+          "Demo": 31,
+          "Total": 237
+        },
+        "2026": {
+          "New SFR": 2,
+          "New MF": 114,
+          "Other New": 4,
+          "Demo": 9,
+          "Total": 129
+        }
+      },
+      "totals": {
+        "New SFR": 13,
+        "New MF": 665,
+        "Other New": 72,
+        "Demo": 95,
+        "Total": 845
+      }
+    },
+    {
+      "neighborhood": "Lawton Park, Briarcliff, Southeast Magnolia, Carleton Park",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 111,
+          "Other New": 3,
+          "Demo": 20,
+          "Total": 134
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 132,
+          "Other New": 7,
+          "Demo": 23,
+          "Total": 162
+        },
+        "2024": {
+          "New SFR": 1,
+          "New MF": 134,
+          "Other New": 14,
+          "Demo": 15,
+          "Total": 164
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 190,
+          "Other New": 12,
+          "Demo": 30,
+          "Total": 232
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 96,
+          "Other New": 2,
+          "Demo": 11,
+          "Total": 109
+        }
+      },
+      "totals": {
+        "New SFR": 1,
+        "New MF": 663,
+        "Other New": 38,
+        "Demo": 99,
+        "Total": 801
+      }
+    },
+    {
+      "neighborhood": "Westlake, Eastlake, South Lake Union",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 1,
+          "New MF": 21,
+          "Other New": 63,
+          "Demo": 17,
+          "Total": 102
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 32,
+          "Other New": 58,
+          "Demo": 18,
+          "Total": 108
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 32,
+          "Other New": 61,
+          "Demo": 9,
+          "Total": 102
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 33,
+          "Other New": 105,
+          "Demo": 6,
+          "Total": 144
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 12,
+          "Other New": 30,
+          "Demo": 1,
+          "Total": 43
+        }
+      },
+      "totals": {
+        "New SFR": 1,
+        "New MF": 130,
+        "Other New": 317,
+        "Demo": 51,
+        "Total": 499
+      }
+    },
+    {
+      "neighborhood": "University District, Cowen Park, University Heights",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 24,
+          "Other New": 45,
+          "Demo": 12,
+          "Total": 81
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 49,
+          "Other New": 46,
+          "Demo": 16,
+          "Total": 111
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 27,
+          "Other New": 57,
+          "Demo": 7,
+          "Total": 91
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 48,
+          "Other New": 45,
+          "Demo": 22,
+          "Total": 115
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 12,
+          "Other New": 22,
+          "Demo": 5,
+          "Total": 39
+        }
+      },
+      "totals": {
+        "New SFR": 0,
+        "New MF": 160,
+        "Other New": 215,
+        "Demo": 62,
+        "Total": 437
+      }
+    },
+    {
+      "neighborhood": "Seward Park, Lakewood, Hillman City",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 44,
+          "Other New": 0,
+          "Demo": 4,
+          "Total": 48
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 53,
+          "Other New": 1,
+          "Demo": 3,
+          "Total": 57
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 62,
+          "Other New": 0,
+          "Demo": 4,
+          "Total": 66
+        },
+        "2025": {
+          "New SFR": 1,
+          "New MF": 73,
+          "Other New": 5,
+          "Demo": 4,
+          "Total": 83
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 26,
+          "Other New": 2,
+          "Demo": 2,
+          "Total": 30
+        }
+      },
+      "totals": {
+        "New SFR": 1,
+        "New MF": 258,
+        "Other New": 8,
+        "Demo": 17,
+        "Total": 284
+      }
+    },
+    {
+      "neighborhood": "Interbay",
+      "jurisdictions": [
+        "Seattle"
+      ],
+      "years": {
+        "2022": {
+          "New SFR": 0,
+          "New MF": 1,
+          "Other New": 21,
+          "Demo": 0,
+          "Total": 22
+        },
+        "2023": {
+          "New SFR": 0,
+          "New MF": 4,
+          "Other New": 22,
+          "Demo": 2,
+          "Total": 28
+        },
+        "2024": {
+          "New SFR": 0,
+          "New MF": 4,
+          "Other New": 18,
+          "Demo": 8,
+          "Total": 30
+        },
+        "2025": {
+          "New SFR": 0,
+          "New MF": 4,
+          "Other New": 21,
+          "Demo": 2,
+          "Total": 27
+        },
+        "2026": {
+          "New SFR": 0,
+          "New MF": 0,
+          "Other New": 10,
+          "Demo": 1,
+          "Total": 11
+        }
+      },
+      "totals": {
+        "New SFR": 0,
+        "New MF": 13,
+        "Other New": 92,
+        "Demo": 13,
+        "Total": 118
+      }
+    }
   ],
   "samples": [
-    {"jurisdiction":"Seattle","category":"New SFR","neighborhood":"Ballard","address":"5411 24th Ave NW","issue_date":"2026-02-12","intake_date":"2025-10-08"},
-    {"jurisdiction":"Seattle","category":"New MF","neighborhood":"Capitol Hill","address":"112 Harvard Ave E","issue_date":"2026-01-21","intake_date":"2025-08-03"},
-    {"jurisdiction":"Bellevue","category":"New MF","neighborhood":"Bellevue Downtown","address":"10301 Main St","issue_date":"2026-03-10","intake_date":"2025-09-14"},
-    {"jurisdiction":"Bellevue","category":"Demo","neighborhood":"Wilburton","address":"1200 124th Ave NE","issue_date":"2025-11-05","intake_date":"2025-07-30"},
-    {"jurisdiction":"Seattle","category":"Demo","neighborhood":"Queen Anne","address":"801 Queen Anne Ave N","issue_date":"2025-10-19","intake_date":"2025-06-12"}
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "University District, Cowen Park, University Heights",
+      "address": "1915 NE CHELAN LN",
+      "issue_date": "2022-04-27",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
+      "address": "7142 47TH AVE SW",
+      "issue_date": "2023-10-05",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9201 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9227 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9213 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
+      "address": "518 N 61ST ST",
+      "issue_date": "2022-08-08",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
+      "address": "6257 43RD AVE NE",
+      "issue_date": "2022-01-03",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
+      "address": "6037 ATLAS PL SW",
+      "issue_date": "2022-03-16",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9202 WOODLAWN AVE N",
+      "issue_date": "2022-06-22",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9207 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Lawton Park, Briarcliff, Southeast Magnolia, Carleton Park",
+      "address": "2551 28TH AVE W",
+      "issue_date": "2022-02-09",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Loyal Heights, Adams, Whittier Heights, West Woodland, Sunset Hill, Golden Gardens, Shilshole, Ballard",
+      "address": "7031 11TH AVE NW",
+      "issue_date": "2022-02-09",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Madrona, Harrison/Denny-Blaine, Minor, Leschi, Mann, Atlantic, Squire Park, Judkins Park, Central District, Colman, Garfield, Jackson Place",
+      "address": "1126 M L KING JR WAY",
+      "issue_date": "2022-01-26",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
+      "address": "8124 STONE AVE N",
+      "issue_date": "2022-03-02",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "East Queen Anne, West Queen Anne, Lower Queen Anne, North Queen Anne, Uptown, Seattle Center",
+      "address": "2665 13TH AVE W",
+      "issue_date": "2022-02-17",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Unknown",
+      "address": "206 S BRANDON ST",
+      "issue_date": "2022-03-21",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
+      "address": "3036 NE 90TH ST",
+      "issue_date": "2022-07-20",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "14332 MERIDIAN AVE N",
+      "issue_date": "2022-01-11",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Pike-Market, Belltown, International District, Central Business District, First Hill, Yesler Terrace, Pioneer Square, Denny Regrade, Denny Triangle, Commercial Core, West Edge, Pike Place Market, Chinatown, Little Saigon, ID",
+      "address": "600 UNIVERSITY ST",
+      "issue_date": "2022-02-16",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Brighton, Dunlap, Rainier Beach, Mount Baker, Columbia City, North Rainier, Lake Ridge, Rainier View, Columbia Heights",
+      "address": "3810 S FERDINAND ST",
+      "issue_date": "2022-05-03",
+      "intake_date": "2022-01-03"
+    }
   ],
   "map_points": [
-    {"jurisdiction":"Seattle","category":"New SFR","neighborhood":"Ballard","address":"5411 24th Ave NW","issue_date":"2026-02-12","intake_date":"2025-10-08"},
-    {"jurisdiction":"Seattle","category":"New MF","neighborhood":"Capitol Hill","address":"112 Harvard Ave E","issue_date":"2026-01-21","intake_date":"2025-08-03"},
-    {"jurisdiction":"Bellevue","category":"New MF","neighborhood":"Bellevue Downtown","address":"10301 Main St","issue_date":"2026-03-10","intake_date":"2025-09-14"},
-    {"jurisdiction":"Bellevue","category":"Demo","neighborhood":"Wilburton","address":"1200 124th Ave NE","issue_date":"2025-11-05","intake_date":"2025-07-30"},
-    {"jurisdiction":"Seattle","category":"Demo","neighborhood":"Queen Anne","address":"801 Queen Anne Ave N","issue_date":"2025-10-19","intake_date":"2025-06-12"}
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "University District, Cowen Park, University Heights",
+      "address": "1915 NE CHELAN LN",
+      "issue_date": "2022-04-27",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
+      "address": "7142 47TH AVE SW",
+      "issue_date": "2023-10-05",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9201 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9227 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9213 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
+      "address": "518 N 61ST ST",
+      "issue_date": "2022-08-08",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
+      "address": "6257 43RD AVE NE",
+      "issue_date": "2022-01-03",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
+      "address": "6037 ATLAS PL SW",
+      "issue_date": "2022-03-16",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9202 WOODLAWN AVE N",
+      "issue_date": "2022-06-22",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9207 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Lawton Park, Briarcliff, Southeast Magnolia, Carleton Park",
+      "address": "2551 28TH AVE W",
+      "issue_date": "2022-02-09",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Loyal Heights, Adams, Whittier Heights, West Woodland, Sunset Hill, Golden Gardens, Shilshole, Ballard",
+      "address": "7031 11TH AVE NW",
+      "issue_date": "2022-02-09",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Madrona, Harrison/Denny-Blaine, Minor, Leschi, Mann, Atlantic, Squire Park, Judkins Park, Central District, Colman, Garfield, Jackson Place",
+      "address": "1126 M L KING JR WAY",
+      "issue_date": "2022-01-26",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
+      "address": "8124 STONE AVE N",
+      "issue_date": "2022-03-02",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "East Queen Anne, West Queen Anne, Lower Queen Anne, North Queen Anne, Uptown, Seattle Center",
+      "address": "2665 13TH AVE W",
+      "issue_date": "2022-02-17",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Unknown",
+      "address": "206 S BRANDON ST",
+      "issue_date": "2022-03-21",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
+      "address": "3036 NE 90TH ST",
+      "issue_date": "2022-07-20",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "14332 MERIDIAN AVE N",
+      "issue_date": "2022-01-11",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Pike-Market, Belltown, International District, Central Business District, First Hill, Yesler Terrace, Pioneer Square, Denny Regrade, Denny Triangle, Commercial Core, West Edge, Pike Place Market, Chinatown, Little Saigon, ID",
+      "address": "600 UNIVERSITY ST",
+      "issue_date": "2022-02-16",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Brighton, Dunlap, Rainier Beach, Mount Baker, Columbia City, North Rainier, Lake Ridge, Rainier View, Columbia Heights",
+      "address": "3810 S FERDINAND ST",
+      "issue_date": "2022-05-03",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
+      "address": "4315 THACKERAY PL NE",
+      "issue_date": "2022-01-04",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Other New",
+      "neighborhood": "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
+      "address": "5269 CALIFORNIA AVE SW",
+      "issue_date": "",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "New MF",
+      "neighborhood": "Seward Park, Lakewood, Hillman City",
+      "address": "4828 S KENNY ST",
+      "issue_date": "2022-01-05",
+      "intake_date": "2022-01-03"
+    },
+    {
+      "jurisdiction": "Seattle",
+      "category": "Demo",
+      "neighborhood": "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
+      "address": "9219 DENSMORE AVE N",
+      "issue_date": "2022-06-13",
+      "intake_date": "2022-01-03"
+    }
   ],
   "load_notes": [
-    "Serving precomputed starter dataset for instant startup.",
-    "Run refresh_data.py locally to rebuild from live Seattle and Bellevue sources."
+    "Precomputed refresh generated 21484 target permit rows.",
+    "Known neighborhoods after refresh: 18.",
+    "Seattle kept 21484 rows across 27 pages.",
+    "Bellevue kept 0 rows after scanning 380598 CSV rows."
   ],
-  "load_errors": []
+  "load_errors": [
+    "Bellevue refresh returned zero target rows. Check BELLEVUE_PERMITS_URL or inspect columns_seen in data/refresh_debug.json."
+  ]
 }
