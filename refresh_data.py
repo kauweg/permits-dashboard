@@ -1,513 +1,575 @@
-
-"""Refresh precomputed permit dashboard data.
-
-Run locally, then commit the generated data/*.json files.
-This keeps Render startup instant while still allowing fresh civic-data pulls.
-
-Notes:
-- Seattle permits are pulled from the City of Seattle Socrata dataset 76t5-zqzr.
-- Seattle neighborhoods are pulled from Seattle's ArcGIS nma_nhoods_main layer.
-- Bellevue permits default to the Bellevue hub CSV download URL, but you can override it
-  with BELLEVUE_PERMITS_URL if the city rotates the item URL.
-"""
-
 from __future__ import annotations
 
 import csv
 import io
 import json
 import os
+import re
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import requests
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / 'data'
+DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-YEARS = [2022, 2023, 2024, 2025, 2026]
-VALID_CATEGORIES = ['New SFR', 'New MF', 'Other New', 'Demo']
+YEARS = {2022, 2023, 2024, 2025, 2026}
 
-SEATTLE_PERMITS_URL = 'https://data.seattle.gov/resource/76t5-zqzr.json'
-SEATTLE_NEIGHBORHOODS_URL = (
-    'https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/'
-    'nma_nhoods_main/FeatureServer/0/query'
+SEATTLE_CSV_URL = "https://data.seattle.gov/api/views/76t5-zqzr/rows.csv?accessType=DOWNLOAD"
+BELLEVUE_DEFAULT_CSV_URL = (
+    "https://hub.arcgis.com/api/download/v1/items/"
+    "fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=true"
 )
-BELLEVUE_PERMITS_CSV = os.getenv(
-    'BELLEVUE_PERMITS_URL',
-    'https://hub.arcgis.com/api/download/v1/items/fc7da7bd29d4493481b17d032e117d09/csv?layers=0&redirect=true',
-)
-REQUEST_TIMEOUT = 120
-SESSION = requests.Session()
-SESSION.headers.update({'User-Agent': 'permit-dashboard-precompute/13.0'})
+BELLEVUE_CSV_URL = os.getenv("BELLEVUE_PERMITS_URL", "").strip() or BELLEVUE_DEFAULT_CSV_URL
 
+# Better market mapping, especially around downtown / core Seattle areas.
+MARKET_NAME_MAP = [
+    ("Downtown Core", [
+        "commercial core",
+        "central business district",
+        "west edge",
+        "denny triangle",
+        "belltown",
+        "pike-market",
+        "waterfront",
+    ]),
+    ("Pioneer Square / ID", [
+        "pioneer square",
+        "international district",
+        "chinatown",
+        "little saigon",
+        "stadium district",
+        "yesler terrace",
+    ]),
+    ("First Hill / Capitol Hill", [
+        "first hill",
+        "capitol hill",
+        "pike/pine",
+        "broadway",
+    ]),
+    ("South Lake Union / Eastlake", [
+        "south lake union",
+        "eastlake",
+        "westlake",
+        "cascade",
+    ]),
+    ("Queen Anne / Magnolia", [
+        "uptown",
+        "lower queen anne",
+        "east queen anne",
+        "west queen anne",
+        "north queen anne",
+        "queen anne",
+        "lawton park",
+        "briarcliff",
+        "magnolia",
+        "southeast magnolia",
+        "interbay",
+    ]),
+    ("Ballard", [
+        "ballard",
+        "loyal heights",
+        "adams",
+        "whittier heights",
+        "west woodland",
+        "sunset hill",
+        "golden gardens",
+        "shilshole",
+        "crown hill",
+    ]),
+    ("Fremont / Wallingford", [
+        "fremont",
+        "wallingford",
+        "green lake",
+        "phinney ridge",
+        "woodland park",
+        "northlake",
+        "tangletown",
+    ]),
+    ("University District / Northeast", [
+        "university district",
+        "university heights",
+        "cowen park",
+        "roosevelt",
+        "ravenna",
+        "wedgwood",
+        "laurelhurst",
+        "bryant",
+        "view ridge",
+        "windermere",
+        "sand point",
+        "hawthorne hills",
+        "university village",
+    ]),
+    ("North Seattle", [
+        "north beach/blue ridge",
+        "broadview",
+        "bitter lake",
+        "greenwood",
+        "haller lake",
+        "pinehurst",
+        "north college park",
+        "olympic view",
+        "licton springs",
+        "victory heights",
+        "matthews beach",
+        "meadowbrook",
+        "cedar park",
+        "northgate",
+    ]),
+    ("Central Seattle", [
+        "central district",
+        "madrona",
+        "madison park",
+        "mann",
+        "minor",
+        "atlantic",
+        "judkins park",
+        "squire park",
+        "leschi",
+        "denny-blaine",
+        "colman",
+        "garfield",
+        "jackson place",
+    ]),
+    ("Beacon Hill", [
+        "north beacon hill",
+        "mid-beacon hill",
+        "south beacon hill",
+        "new holly",
+        "holly park",
+        "jefferson park",
+        "beacon hill",
+    ]),
+    ("West Seattle", [
+        "west seattle",
+        "alki",
+        "north admiral",
+        "fairmount park",
+        "genesee",
+        "fauntleroy",
+        "morgan junction",
+        "alaska junction",
+        "belvidere",
+        "seaview",
+        "gatewood",
+        "arbor heights",
+        "brace point",
+        "endolyne",
+        "arroyo heights",
+        "highland park",
+        "north delridge",
+        "south delridge",
+        "high point",
+        "roxhill",
+        "westwood",
+        "avalon",
+        "luna park",
+        "pigeon point",
+        "delridge",
+    ]),
+    ("South Seattle", [
+        "mount baker",
+        "columbia city",
+        "seward park",
+        "north rainier",
+        "brighton",
+        "dunlap",
+        "rainier beach",
+        "rainier view",
+        "hillman city",
+        "lakewood",
+        "columbia heights",
+        "lake ridge",
+    ]),
+    ("Bellevue Downtown", [
+        "bellevue downtown",
+        "downtown bellevue",
+    ]),
+    ("Wilburton", ["wilburton"]),
+    ("Eastgate", ["eastgate"]),
+    ("Crossroads", ["crossroads"]),
+    ("Factoria", ["factoria"]),
+    ("Bel-Red", ["bel-red", "belred"]),
+    ("West Bellevue", ["west bellevue"]),
+    ("Bellevue", ["bellevue"]),
+]
 
-def parse_dt(value: Any):
-    if not value:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    if text.endswith('Z'):
-        text = text[:-1] + '+00:00'
-    candidates = [text, text.replace(' ', 'T')]
-    fmts = (
-        '%Y-%m-%d', '%m/%d/%Y', '%Y/%m/%d', '%Y-%m-%dT%H:%M:%S',
-        '%Y-%m-%dT%H:%M:%S.%f', '%m/%d/%Y %H:%M:%S', '%m/%d/%Y %I:%M:%S %p'
-    )
-    for candidate in candidates:
-        try:
-            dt = datetime.fromisoformat(candidate)
-            if dt.tzinfo is not None:
-                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt
-        except Exception:
-            pass
-    for fmt in fmts:
-        try:
-            return datetime.strptime(text[:26], fmt)
-        except Exception:
-            pass
-    return None
-
+UNIT_PATTERNS = [
+    re.compile(r"(\d{1,4})\s+units?\b", re.I),
+    re.compile(r"(\d{1,4})[-\s]+unit\b", re.I),
+    re.compile(r"(\d{1,4})\s+apartment", re.I),
+    re.compile(r"(\d{1,4})\s+apartments", re.I),
+    re.compile(r"(\d{1,4})\s+condo", re.I),
+    re.compile(r"(\d{1,4})\s+condominium", re.I),
+    re.compile(r"(\d{1,4})\s+townhome", re.I),
+    re.compile(r"(\d{1,4})\s+townhouse", re.I),
+    re.compile(r"(\d{1,4})\s+dwelling", re.I),
+    re.compile(r"(\d{1,4})\s+residential\s+units?", re.I),
+]
 
 def normalize(text: Any) -> str:
-    return ' '.join(str(text or '').replace('\xa0', ' ').split())
+    return " ".join(str(text or "").replace("\xa0", " ").split())
 
-
-def clean_neighborhood(text: Any) -> str:
-    value = normalize(text)
-    if not value:
-        return 'Unknown'
-    low = value.lower()
-    if low in {'na', 'n/a', 'none', 'null', 'unknown'}:
-        return 'Unknown'
-    return value
-
-
-def classify(text: str):
-    t = f" {normalize(text).lower()} "
-    if any(k in t for k in [' demol', ' demolition', ' demo ', ' teardown', ' raze', ' remove structure']):
-        return 'Demo'
-    has_new = any(k in t for k in [
-        ' new ', 'new construction', 'ground up', 'construct', 'construction of',
-        'new bldg', 'new building', 'new structure', 'shell building', 'core and shell'
-    ])
-    if not has_new:
-        return None
-    has_sf = any(k in t for k in [
-        ' single family', 'single-family', ' sfr ', 'detached',
-        'one-family', 'single family residence', 'single family dwelling'
-    ])
-    has_mf = any(k in t for k in [
-        ' multifamily', 'multi-family', 'multi family', ' apartment', 'apartments', 'townhome',
-        'townhouse', 'condo', 'condominium', 'duplex', 'triplex', 'fourplex', 'mixed use', 'mixed-use',
-        'rowhouse', 'live/work', 'stacked flat'
-    ])
-    if has_sf and not has_mf:
-        return 'New SFR'
-    if has_mf:
-        return 'New MF'
-    return 'Other New'
-
-
-def extract_point(row: dict[str, Any]):
-    # Flat keys first.
-    lat_keys = ['latitude', 'lat', 'y']
-    lon_keys = ['longitude', 'lon', 'lng', 'x']
-    for la in lat_keys:
-        for lo in lon_keys:
-            if row.get(la) not in (None, '') and row.get(lo) not in (None, ''):
-                try:
-                    return float(row[lo]), float(row[la])
-                except Exception:
-                    pass
-    # Socrata location object / string variants.
-    loc = row.get('location') or row.get('point') or row.get('coordinates')
-    if isinstance(loc, dict):
-        coords = loc.get('coordinates')
-        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
-            try:
-                return float(coords[0]), float(coords[1])
-            except Exception:
-                pass
-        try:
-            if loc.get('longitude') and loc.get('latitude'):
-                return float(loc['longitude']), float(loc['latitude'])
-        except Exception:
-            pass
-    return None
-
-
-def point_in_ring(x: float, y: float, ring: list[list[float]]) -> bool:
-    inside = False
-    n = len(ring)
-    if n < 3:
-        return False
-    j = n - 1
-    for i in range(n):
-        xi, yi = ring[i]
-        xj, yj = ring[j]
-        intersects = ((yi > y) != (yj > y)) and (
-            x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-12) + xi
-        )
-        if intersects:
-            inside = not inside
-        j = i
-    return inside
-
-
-def point_in_polygon(x: float, y: float, rings: list[list[list[float]]]) -> bool:
-    if not rings:
-        return False
-    # ArcGIS polygons use first ring as exterior; later rings may be holes.
-    if not point_in_ring(x, y, rings[0]):
-        return False
-    for hole in rings[1:]:
-        if point_in_ring(x, y, hole):
-            return False
-    return True
-
-
-def fetch_seattle_neighborhoods():
-    params = {
-        'where': '1=1',
-        'outFields': 'L_HOOD,S_HOOD_ALT_NAMES',
-        'returnGeometry': 'true',
-        'f': 'json',
-        'outSR': '4326',
-        'resultOffset': 0,
-        'resultRecordCount': 2000,
-    }
-    resp = SESSION.get(SEATTLE_NEIGHBORHOODS_URL, params=params, timeout=REQUEST_TIMEOUT)
-    resp.raise_for_status()
-    payload = resp.json()
-    features = payload.get('features') or []
-    out = []
-    for feature in features:
-        attrs = feature.get('attributes') or {}
-        geom = feature.get('geometry') or {}
-        rings = geom.get('rings') or []
-        if not rings:
-            continue
-        bbox = [
-            min(pt[0] for ring in rings for pt in ring),
-            min(pt[1] for ring in rings for pt in ring),
-            max(pt[0] for ring in rings for pt in ring),
-            max(pt[1] for ring in rings for pt in ring),
-        ]
-        name = clean_neighborhood(attrs.get('S_HOOD_ALT_NAMES') or attrs.get('L_HOOD'))
-        out.append({'name': name, 'rings': rings, 'bbox': bbox})
-    return out
-
-
-def assign_seattle_neighborhood(point, neighborhoods):
-    if not point:
-        return 'Unknown'
-    x, y = point
-    for item in neighborhoods:
-        xmin, ymin, xmax, ymax = item['bbox']
-        if x < xmin or x > xmax or y < ymin or y > ymax:
-            continue
-        if point_in_polygon(x, y, item['rings']):
-            return item['name']
-    return 'Unknown'
-
-
-def fetch_seattle_rows(neighborhoods):
-    offset = 0
-    out = []
-    pages = 0
-    while True:
-        params = {
-            '$limit': '1000',
-            '$offset': str(offset),
-            '$order': 'applieddate ASC',
-            '$where': "applieddate >= '2022-01-01T00:00:00.000'",
-        }
-        res = SESSION.get(SEATTLE_PERMITS_URL, params=params, timeout=REQUEST_TIMEOUT)
-        res.raise_for_status()
-        rows = res.json()
-        if not rows:
-            break
-        pages += 1
-        for r in rows:
-            text = ' '.join(str(r.get(k, '')) for k in ['permitclass', 'permittype', 'description'])
-            category = classify(text)
-            if not category:
-                continue
-            issue_dt = parse_dt(r.get('issueddate'))
-            intake_dt = parse_dt(r.get('applieddate'))
-            year_dt = issue_dt or intake_dt
-            if not year_dt or year_dt.year not in YEARS:
-                continue
-            neighborhood = clean_neighborhood(r.get('neighborhood') or r.get('neighborhoodname'))
-            if neighborhood == 'Unknown':
-                neighborhood = assign_seattle_neighborhood(extract_point(r), neighborhoods)
-            point = extract_point(r)
-            out.append({
-                'jurisdiction': 'Seattle',
-                'category': category,
-                'neighborhood': neighborhood,
-                'address': normalize(r.get('originaladdress1') or r.get('address')),
-                'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
-                'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
-                'longitude': point[0] if point else None,
-                'latitude': point[1] if point else None,
-            })
-        offset += len(rows)
-        if len(rows) < 1000:
-            break
-    return out, {'pages': pages, 'rows_kept': len(out)}
-
-
-def stream_csv_dicts(url: str) -> Iterable[dict[str, str]]:
-    with SESSION.get(url, timeout=REQUEST_TIMEOUT, stream=True) as resp:
-        resp.raise_for_status()
-        resp.encoding = resp.encoding or 'utf-8'
-        lines = (line.decode(resp.encoding, errors='replace') for line in resp.iter_lines() if line)
-        reader = csv.DictReader(lines)
-        for row in reader:
-            yield row
-
-
-def pick_first(row: dict[str, Any], keys: list[str]):
+def pick_first(row: dict[str, Any], keys: list[str]) -> Any:
+    lower_map = {str(k).lower(): v for k, v in row.items()}
     for key in keys:
         if key in row and normalize(row.get(key)):
             return row.get(key)
-    # tolerant fallback for shifted headings
-    normalized_map = {normalize(k).lower().replace('_', '').replace(' ', ''): k for k in row.keys()}
-    for key in keys:
-        probe = normalize(key).lower().replace('_', '').replace(' ', '')
-        actual = normalized_map.get(probe)
-        if actual and normalize(row.get(actual)):
-            return row.get(actual)
+        lk = key.lower()
+        if lk in lower_map and normalize(lower_map[lk]):
+            return lower_map[lk]
     return None
 
+def parse_dt(value: Any) -> datetime | None:
+    s = normalize(value)
+    if not s:
+        return None
 
-def fetch_bellevue_rows():
-    out = []
-    seen_columns = set()
-    examined = 0
-    kept_with_year = 0
-    dropped_examples = []
-    no_date_examples = []
-    for r in stream_csv_dicts(BELLEVUE_PERMITS_CSV):
-        examined += 1
-        seen_columns.update(r.keys())
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S.%f",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d",
+        "%m/%d/%Y",
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%y",
+    ):
+        try:
+            return datetime.strptime(s[:26], fmt)
+        except Exception:
+            continue
 
-        issue_dt = parse_dt(pick_first(r, ['IssueDate', 'IssuedDate', 'PermitIssueDate']))
-        intake_dt = parse_dt(pick_first(r, ['ApplicationDate', 'IntakeDate', 'AppliedDate', 'PermitApplicationDate', 'EffectiveDate', 'ReadyForReviewDate']))
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+def short_market_name(name: str) -> str:
+    raw = normalize(name).lower()
+    if not raw:
+        return "Unknown"
+    for market, patterns in MARKET_NAME_MAP:
+        if any(p in raw for p in patterns):
+            return market
+    return normalize(name)
+
+def classify(text: str) -> str | None:
+    t = f" {normalize(text).lower()} "
+
+    # demo
+    if any(k in t for k in [
+        " demol", " demolition", " demo ", "teardown", " raze ", "remove structure"
+    ]):
+        return "Demo"
+
+    # must clearly be new construction
+    is_new = any(k in t for k in [
+        " new ",
+        "new construction",
+        "new building",
+        "new structure",
+        "ground up",
+        "construct",
+        "construction of",
+        "new residence",
+        "new apartment",
+        "new townhome",
+        "new townhouse",
+    ])
+    if not is_new:
+        return None
+
+    is_sf = any(k in t for k in [
+        " single family",
+        "single-family",
+        " sfr ",
+        "single family residence",
+        "single family dwelling",
+        "one-family",
+    ])
+
+    is_mf = any(k in t for k in [
+        " multifamily",
+        "multi-family",
+        "multi family",
+        " apartment",
+        "apartments",
+        "condo",
+        "condominium",
+        "townhome",
+        "townhouse",
+        "duplex",
+        "triplex",
+        "fourplex",
+        "mixed use",
+        "mixed-use",
+        "stacked flat",
+        "rowhouse",
+    ])
+
+    if is_sf and not is_mf:
+        return "New SFR"
+    if is_mf:
+        return "New MF"
+    return None
+
+def extract_units(text: str) -> int:
+    t = normalize(text)
+    if not t:
+        return 0
+    for pattern in UNIT_PATTERNS:
+        m = pattern.search(t)
+        if m:
+            try:
+                return int(m.group(1))
+            except Exception:
+                pass
+    return 0
+
+def safe_float(value: Any) -> float | None:
+    try:
+        if value in (None, "", "NULL"):
+            return None
+        return float(value)
+    except Exception:
+        return None
+
+def download_csv_rows(url: str, timeout: int = 120) -> list[dict[str, Any]]:
+    r = requests.get(url, timeout=timeout)
+    r.raise_for_status()
+    text_stream = io.StringIO(r.text)
+    reader = csv.DictReader(text_stream)
+    return list(reader)
+
+def fetch_seattle_rows(debug: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = download_csv_rows(SEATTLE_CSV_URL, timeout=180)
+    out: list[dict[str, Any]] = []
+    dropped = 0
+
+    for row in rows:
+        text = " ".join([
+            normalize(pick_first(row, ["permitclass", "permit_class"])),
+            normalize(pick_first(row, ["permittype", "permit_type"])),
+            normalize(pick_first(row, ["description", "permitdescription", "permitdesc"])),
+        ]).strip()
+
+        category = classify(text)
+        if not category:
+            dropped += 1
+            continue
+
+        issue_dt = parse_dt(pick_first(row, ["issueddate", "issuedate", "issue_date"]))
+        intake_dt = parse_dt(pick_first(row, ["applicationdate", "application_date"]))
         year_dt = issue_dt or intake_dt
         if not year_dt or year_dt.year not in YEARS:
-            if len(no_date_examples) < 25:
-                no_date_examples.append({
-                    'issue_raw': pick_first(r, ['IssueDate', 'IssuedDate', 'PermitIssueDate']),
-                    'intake_raw': pick_first(r, ['ApplicationDate', 'IntakeDate', 'AppliedDate', 'PermitApplicationDate', 'EffectiveDate', 'ReadyForReviewDate']),
-                    'permit_type': pick_first(r, ['PermitType', 'TypeDetailNames']),
-                    'work_detail': pick_first(r, ['WorkDetail']),
-                })
-            continue
-        kept_with_year += 1
-
-        address = normalize(pick_first(r, ['WorkLocationFullAddress', 'WorkLocationAddressID', 'Address', 'SiteAddress', 'FullAddress', 'StreetAddress']))
-        neighborhood = clean_neighborhood(pick_first(r, ['NeighborhoodNames', 'NeighborhoodClusters', 'NeighborhoodArea', 'Neighborhood', 'AreaName', 'PlanningArea', 'SubArea']))
-
-        permit_text = ' '.join(filter(None, [
-            normalize(pick_first(r, ['PermitType', 'TypeDetailNames', 'StatusDescription', 'Status'])),
-            normalize(pick_first(r, ['WorkDetail'])),
-            address,
-            neighborhood,
-        ])).strip()
-        category = classify(permit_text)
-
-        # Bellevue-specific fallback: use PermitType/TypeDetailNames/WorkDetail like Seattle's broad logic.
-        if not category:
-            low = permit_text.lower()
-            if any(k in low for k in ['demol', 'demo', 'teardown', 'raze', 'remove structure']):
-                category = 'Demo'
-            elif any(k in low for k in ['new', 'construct', 'construction', 'addition', 'building']) and any(k in low for k in ['single family', 'single-family', 'sfr', 'one-family', 'detached']):
-                category = 'New SFR'
-            elif any(k in low for k in ['new', 'construct', 'construction', 'addition', 'building']) and any(k in low for k in ['multi', 'apartment', 'townhouse', 'townhome', 'condo', 'duplex', 'triplex', 'fourplex', 'mixed use', 'mixed-use', 'live/work']):
-                category = 'New MF'
-            elif any(k in low for k in ['new', 'construct', 'construction', 'addition', 'building']):
-                category = 'Other New'
-
-        if not category:
-            if len(dropped_examples) < 60:
-                dropped_examples.append({
-                    'source': 'Bellevue',
-                    'permit_text': permit_text[:350],
-                    'address': address,
-                    'neighborhood': neighborhood,
-                    'permit_type': pick_first(r, ['PermitType']),
-                    'type_detail_names': pick_first(r, ['TypeDetailNames']),
-                    'work_detail': pick_first(r, ['WorkDetail']),
-                })
             continue
 
-        lat = pick_first(r, ['Latitude', 'Y', 'YCoord'])
-        lon = pick_first(r, ['Longitude', 'XCoord', 'X', '﻿X'])
-        try:
-            lat = float(lat) if lat not in (None, '', 'NULL') else None
-        except Exception:
-            lat = None
-        try:
-            lon = float(lon) if lon not in (None, '', 'NULL') else None
-        except Exception:
-            lon = None
+        raw_neighborhood = normalize(
+            pick_first(row, ["neighborhood", "neighborhoodname", "neighborhood_name"])
+        ) or "Unknown"
+
+        market = short_market_name(raw_neighborhood)
 
         out.append({
-            'jurisdiction': 'Bellevue',
-            'category': category,
-            'neighborhood': neighborhood,
-            'address': address,
-            'issue_date': issue_dt.isoformat()[:10] if issue_dt else '',
-            'intake_date': intake_dt.isoformat()[:10] if intake_dt else '',
-            'latitude': lat,
-            'longitude': lon,
+            "jurisdiction": "Seattle",
+            "market": market,
+            "neighborhood": market,  # dashboard filter/group field
+            "raw_neighborhood": raw_neighborhood,  # actual neighborhood
+            "address": normalize(
+                pick_first(row, ["originaladdress1", "address", "siteaddress", "site_address"])
+            ),
+            "category": category,
+            "units": extract_units(text),
+            "issue_date": issue_dt.date().isoformat() if issue_dt else "",
+            "intake_date": intake_dt.date().isoformat() if intake_dt else "",
+            "year": year_dt.year,
+            "latitude": safe_float(pick_first(row, ["latitude", "lat"])),
+            "longitude": safe_float(pick_first(row, ["longitude", "long", "lng", "lon"])),
+            "summary": normalize(text),
         })
 
-        if examined % 5000 == 0:
-            print(f'Bellevue scanned {examined} rows... kept {len(out)}')
+    debug["seattle_rows_examined"] = len(rows)
+    debug["seattle_rows_kept"] = len(out)
+    debug["seattle_rows_dropped"] = dropped
+    return out
 
-    return out, {
-        'rows_examined': examined,
-        'rows_with_target_year': kept_with_year,
-        'rows_kept': len(out),
-        'columns_seen': sorted(seen_columns)[:120],
-        'dropped_examples': dropped_examples,
-        'no_date_examples': no_date_examples,
+def fetch_bellevue_rows(debug: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = download_csv_rows(BELLEVUE_CSV_URL, timeout=180)
+    out: list[dict[str, Any]] = []
+    dropped = 0
+    columns_seen = set()
+
+    for row in rows:
+        columns_seen.update(row.keys())
+
+        text = " ".join([
+            normalize(pick_first(row, ["PermitType"])),
+            normalize(pick_first(row, ["TypeDetailNames"])),
+            normalize(pick_first(row, ["WorkDetail"])),
+            normalize(pick_first(row, ["Description"])),
+        ]).strip()
+
+        category = classify(text)
+        if not category:
+            dropped += 1
+            continue
+
+        issue_dt = parse_dt(pick_first(row, ["IssueDate", "IssuedDate"]))
+        intake_dt = parse_dt(pick_first(row, ["ApplicationDate", "IntakeDate"]))
+        year_dt = issue_dt or intake_dt
+        if not year_dt or year_dt.year not in YEARS:
+            continue
+
+        raw_neighborhood = normalize(
+            pick_first(row, ["NeighborhoodNames", "NeighborhoodClusters", "Neighborhood"])
+        ) or "Bellevue"
+
+        market = short_market_name(raw_neighborhood)
+
+        out.append({
+            "jurisdiction": "Bellevue",
+            "market": market,
+            "neighborhood": market,
+            "raw_neighborhood": raw_neighborhood,
+            "address": normalize(
+                pick_first(row, ["WorkLocationFullAddress", "Address", "SiteAddress"])
+            ),
+            "category": category,
+            "units": extract_units(text),
+            "issue_date": issue_dt.date().isoformat() if issue_dt else "",
+            "intake_date": intake_dt.date().isoformat() if intake_dt else "",
+            "year": year_dt.year,
+            "latitude": safe_float(pick_first(row, ["Latitude", "Lat"])),
+            "longitude": safe_float(pick_first(row, ["Longitude", "Lng", "Lon"])),
+            "summary": normalize(text),
+        })
+
+    debug["bellevue_rows_examined"] = len(rows)
+    debug["bellevue_rows_kept"] = len(out)
+    debug["bellevue_rows_dropped"] = dropped
+    debug["bellevue_columns_seen"] = sorted(columns_seen)
+    return out
+
+def build_outputs(rows: list[dict[str, Any]], debug: dict[str, Any]):
+    cards = {
+        "total_permits": len(rows),
+        "seattle_permits": sum(1 for r in rows if r["jurisdiction"] == "Seattle"),
+        "bellevue_permits": sum(1 for r in rows if r["jurisdiction"] == "Bellevue"),
+        "known_markets": len({r["market"] for r in rows if r["market"] != "Unknown"}),
+        "new_sfr": sum(1 for r in rows if r["category"] == "New SFR"),
+        "new_mf": sum(1 for r in rows if r["category"] == "New MF"),
+        "demo": sum(1 for r in rows if r["category"] == "Demo"),
+        "total_units": sum(int(r.get("units") or 0) for r in rows),
     }
 
-
-def build_outputs(rows, diagnostics):
-    agg: dict[str, Any] = {}
-    samples = []
-    for row in rows:
-        hood = row['neighborhood'] or 'Unknown'
-        year = (row['issue_date'] or row['intake_date'])[:4]
-        if year not in {str(y) for y in YEARS}:
+    annual_map = {
+        y: {"year": y, "New SFR": 0, "New MF": 0, "Demo": 0, "Total": 0, "Units": 0}
+        for y in sorted(YEARS)
+    }
+    for r in rows:
+        y = r["year"]
+        if y not in annual_map:
             continue
-        agg.setdefault(hood, {
-            'neighborhood': hood,
-            'jurisdictions': set(),
-            'years': {str(y): {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0} for y in YEARS},
-        })
-        agg[hood]['jurisdictions'].add(row['jurisdiction'])
-        bucket = agg[hood]['years'][year]
-        bucket[row['category']] += 1
-        bucket['Total'] += 1
-        if len(samples) < 60:
-            samples.append(row)
+        annual_map[y][r["category"]] += 1
+        annual_map[y]["Total"] += 1
+        annual_map[y]["Units"] += int(r.get("units") or 0)
+
+    annual_series = [annual_map[y] for y in sorted(annual_map)]
+
+    grouped = {}
+    for r in rows:
+        market = r["market"]
+        if market not in grouped:
+            grouped[market] = {
+                "neighborhood": market,
+                "jurisdictions": set(),
+                "years": {
+                    str(y): {
+                        "New SFR": 0,
+                        "New MF": 0,
+                        "Demo": 0,
+                        "Total": 0,
+                        "Units": 0,
+                    }
+                    for y in sorted(YEARS)
+                },
+                "totals": {"New SFR": 0, "New MF": 0, "Demo": 0, "Total": 0, "Units": 0},
+            }
+
+        entry = grouped[market]
+        entry["jurisdictions"].add(r["jurisdiction"])
+
+        y = str(r["year"])
+        entry["years"][y][r["category"]] += 1
+        entry["years"][y]["Total"] += 1
+        entry["years"][y]["Units"] += int(r.get("units") or 0)
+
+        entry["totals"][r["category"]] += 1
+        entry["totals"]["Total"] += 1
+        entry["totals"]["Units"] += int(r.get("units") or 0)
 
     neighborhood_rows = []
-    for hood, item in agg.items():
-        totals = {'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
-        for y in YEARS:
-            yr = item['years'][str(y)]
-            for k in totals:
-                totals[k] += yr[k]
-        neighborhood_rows.append({
-            'neighborhood': hood,
-            'jurisdictions': sorted(item['jurisdictions']),
-            'years': item['years'],
-            'totals': totals,
-        })
-    neighborhood_rows.sort(key=lambda r: (-r['totals']['Total'], r['neighborhood']))
+    for entry in grouped.values():
+        entry["jurisdictions"] = sorted(entry["jurisdictions"])
+        neighborhood_rows.append(entry)
 
-    annual_series = []
-    for y in YEARS:
-        record = {'year': y, 'New SFR': 0, 'New MF': 0, 'Other New': 0, 'Demo': 0, 'Total': 0}
-        for row in neighborhood_rows:
-            yr = row['years'][str(y)]
-            for k in ('New SFR', 'New MF', 'Other New', 'Demo', 'Total'):
-                record[k] += yr[k]
-        annual_series.append(record)
+    neighborhood_rows.sort(key=lambda x: (-x["totals"]["Total"], x["neighborhood"]))
 
-    known_hoods = [r for r in neighborhood_rows if r['neighborhood'] != 'Unknown']
+    # IMPORTANT: all map points
     summary = {
-        'generated_at': datetime.now(timezone.utc).isoformat(),
-        'cards': {
-            'total_permits': sum(r['totals']['Total'] for r in neighborhood_rows),
-            'seattle_permits': sum(r['totals']['Total'] for r in neighborhood_rows if 'Seattle' in r['jurisdictions']),
-            'bellevue_permits': sum(r['totals']['Total'] for r in neighborhood_rows if 'Bellevue' in r['jurisdictions']),
-            'known_neighborhoods': len(known_hoods),
-            'new_sfr': sum(r['totals']['New SFR'] for r in neighborhood_rows),
-            'new_mf': sum(r['totals']['New MF'] for r in neighborhood_rows),
-            'other_new': sum(r['totals']['Other New'] for r in neighborhood_rows),
-            'all_new': sum(r['totals']['New SFR'] + r['totals']['New MF'] + r['totals']['Other New'] for r in neighborhood_rows),
-            'demo': sum(r['totals']['Demo'] for r in neighborhood_rows),
-        },
-        'annual_series': annual_series,
-        'neighborhood_rows': neighborhood_rows,
-        'samples': samples[:20],
-        'map_points': samples[:24],
-        'load_notes': [
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "cards": cards,
+        "annual_series": annual_series,
+        "neighborhood_rows": neighborhood_rows,
+        "samples": rows[:100],
+        "map_points": rows,
+        "load_notes": [
             f"Precomputed refresh generated {len(rows)} target permit rows.",
-            f"Known neighborhoods after refresh: {len(known_hoods)}.",
-            f"Seattle kept {diagnostics.get('seattle_rows_kept', 0)} rows across {diagnostics.get('seattle_pages', 0)} pages.",
-            f"Bellevue kept {diagnostics.get('bellevue_rows_kept', 0)} rows after scanning {diagnostics.get('bellevue_rows_examined', 0)} CSV rows.",
+            f"Seattle kept {debug.get('seattle_rows_kept', 0)} rows out of {debug.get('seattle_rows_examined', 0)} examined.",
+            f"Bellevue kept {debug.get('bellevue_rows_kept', 0)} rows out of {debug.get('bellevue_rows_examined', 0)} examined.",
+            f"Known markets after refresh: {cards['known_markets']}.",
+            f"Total known units: {cards['total_units']}.",
         ],
-        'load_errors': diagnostics.get('errors', []),
+        "load_errors": debug.get("errors", []),
     }
+
     meta = {
-        'generated_at': summary['generated_at'],
-        'neighborhoods': sorted(r['neighborhood'] for r in known_hoods),
-        'load_notes': summary['load_notes'],
-        'load_errors': summary['load_errors'],
+        "generated_at": summary["generated_at"],
+        "markets": sorted({r["market"] for r in rows}),
+        "load_notes": summary["load_notes"],
+        "load_errors": summary["load_errors"],
     }
+
     return summary, meta
 
-
 def main():
-    print('Starting refresh...')
-    rows = []
-    errors = []
-    diagnostics: dict[str, Any] = {'errors': errors}
+    debug: dict[str, Any] = {"errors": []}
+    rows: list[dict[str, Any]] = []
 
-    seattle_neighborhoods = []
+    print("Fetching Seattle permits...")
     try:
-        print('Fetching Seattle neighborhoods...')
-        seattle_neighborhoods = fetch_seattle_neighborhoods()
-        diagnostics['seattle_neighborhood_polygons'] = len(seattle_neighborhoods)
+        rows.extend(fetch_seattle_rows(debug))
     except Exception as e:
-        errors.append(f'Seattle neighborhoods refresh failed: {e}')
+        debug["errors"].append(f"Seattle refresh failed: {e}")
 
+    print("Fetching Bellevue permits...")
     try:
-        print('Fetching Seattle permits...')
-        seattle_rows, seattle_info = fetch_seattle_rows(seattle_neighborhoods)
-        diagnostics['seattle_pages'] = seattle_info['pages']
-        diagnostics['seattle_rows_kept'] = seattle_info['rows_kept']
-        rows.extend(seattle_rows)
+        rows.extend(fetch_bellevue_rows(debug))
     except Exception as e:
-        errors.append(f'Seattle refresh failed: {e}')
+        debug["errors"].append(f"Bellevue refresh failed: {e}")
 
-    try:
-        print('Fetching Bellevue permits...')
-        bellevue_rows, bellevue_info = fetch_bellevue_rows()
-        diagnostics['bellevue_rows_examined'] = bellevue_info['rows_examined']
-        diagnostics['bellevue_rows_kept'] = bellevue_info['rows_kept']
-        diagnostics['bellevue_columns_seen'] = bellevue_info['columns_seen']
-        diagnostics['dropped_examples'] = bellevue_info.get('dropped_examples', [])
-        rows.extend(bellevue_rows)
-        if bellevue_info['rows_kept'] == 0:
-            errors.append(
-                'Bellevue refresh returned zero target rows. Check BELLEVUE_PERMITS_URL or inspect columns_seen in data/refresh_debug.json.'
-            )
-    except Exception as e:
-        errors.append(f'Bellevue refresh failed: {e}')
+    summary, meta = build_outputs(rows, debug)
 
-    summary, meta = build_outputs(rows, diagnostics)
-    (DATA_DIR / 'summary.json').write_text(json.dumps(summary, indent=2), encoding='utf-8')
-    (DATA_DIR / 'meta.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')
-    (DATA_DIR / 'refresh_debug.json').write_text(json.dumps(diagnostics, indent=2), encoding='utf-8')
-    print('Wrote', DATA_DIR / 'summary.json')
-    print('Wrote', DATA_DIR / 'meta.json')
-    print('Wrote', DATA_DIR / 'refresh_debug.json')
+    (DATA_DIR / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    (DATA_DIR / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    (DATA_DIR / "refresh_debug.json").write_text(json.dumps(debug, indent=2), encoding="utf-8")
 
+    print("Wrote", DATA_DIR / "summary.json")
+    print("Wrote", DATA_DIR / "meta.json")
+    print("Wrote", DATA_DIR / "refresh_debug.json")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
