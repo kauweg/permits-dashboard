@@ -125,7 +125,7 @@ input {
 }
 
 .executive-cards {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .card {
@@ -133,7 +133,7 @@ input {
 }
 
 .executive-card {
-  min-height: 104px;
+  min-height: 108px;
 }
 
 .card-label {
@@ -201,21 +201,10 @@ input {
   display: inline-block;
 }
 
-.swatch-sfr {
-  background: var(--blue);
-}
-
-.swatch-mf {
-  background: var(--blue2);
-}
-
-.swatch-other {
-  background: var(--green);
-}
-
-.swatch-demo {
-  background: var(--sand);
-}
+.swatch-sfr { background: var(--blue); }
+.swatch-mf { background: var(--blue2); }
+.swatch-other { background: var(--green); }
+.swatch-demo { background: var(--sand); }
 
 .chart-value {
   margin-top: 8px;
