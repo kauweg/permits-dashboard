@@ -1,32 +1,33 @@
 {
-  "generated_at": "2026-04-22T18:22:23.262558+00:00",
-  "neighborhoods": [
-    "Brighton, Dunlap, Rainier Beach, Mount Baker, Columbia City, North Rainier, Lake Ridge, Rainier View, Columbia Heights",
-    "Broadview, Bitter Lake, North Beach/Blue Ridge, Crown Hill, Greenwood",
-    "East Queen Anne, West Queen Anne, Lower Queen Anne, North Queen Anne, Uptown, Seattle Center",
-    "Haller Lake, Pinehurst, North College Park, Maple Leaf, Jackson Park, Licton Springs, Olympic View",
-    "Highland Park, North Delridge, Riverview, High Point, South Delridge, Roxhill, Westwood, Highland Park, White Center, Avalon, Luna Park, Pigeon Point",
-    "Interbay",
-    "Lawton Park, Briarcliff, Southeast Magnolia, Carleton Park",
-    "Loyal Heights, Adams, Whittier Heights, West Woodland, Sunset Hill, Golden Gardens, Shilshole, Ballard",
-    "Madrona, Harrison/Denny-Blaine, Minor, Leschi, Mann, Atlantic, Squire Park, Judkins Park, Central District, Colman, Garfield, Jackson Place",
-    "North Beacon Hill, Mid-Beacon Hill, South Beacon Hill, Holly Park, Jefferson Park, New Holly",
-    "Phinney Ridge, Wallingford, Fremont, Green Lake, Woodland Park, Meridian, Northlake, Tangle Town",
-    "Pike-Market, Belltown, International District, Central Business District, First Hill, Yesler Terrace, Pioneer Square, Denny Regrade, Denny Triangle, Commercial Core, West Edge, Pike Place Market, Chinatown, Little Saigon, ID",
-    "Seaview, Gatewood, Arbor Heights, Alki, North Admiral, Fairmount Park, Genesee, Fauntleroy, Morgan Junction, Alaska Junction, Belvidere, West Seattle Junction, Brace Point, Endolyne, Arroyo Heights",
-    "Seward Park, Lakewood, Hillman City",
-    "University District, Cowen Park, University Heights",
-    "Victory Heights, Matthews Beach, Meadowbrook, Olympic Hills, Cedar Park",
-    "View Ridge, Ravenna, Sand Point, Bryant, Windermere, Laurelhurst, Roosevelt, Wedgwood, Hawthorne Hills, University Village, Fairview",
-    "Westlake, Eastlake, South Lake Union"
+  "generated_at": "2026-04-23T06:05:25.364489+00:00",
+  "markets": [
+    "Ballard",
+    "Beacon Hill",
+    "Cascade",
+    "Central Area",
+    "Downtown Seattle",
+    "First Hill / Capitol Hill",
+    "Greater Duwamish",
+    "Lake City",
+    "Magnolia",
+    "North Central",
+    "Northeast Seattle",
+    "Northgate",
+    "Northwest",
+    "Queen Anne",
+    "Queen Anne / Magnolia",
+    "Rainier Valley",
+    "Seward Park",
+    "University District / Northeast",
+    "Unknown",
+    "West Seattle"
   ],
   "load_notes": [
-    "Precomputed refresh generated 21484 target permit rows.",
-    "Known neighborhoods after refresh: 18.",
-    "Seattle kept 21484 rows across 27 pages.",
-    "Bellevue kept 0 rows after scanning 380598 CSV rows."
+    "Precomputed refresh generated 17345 target permit rows.",
+    "Seattle kept 17345 rows out of 189499 examined.",
+    "Bellevue kept 0 rows out of 380598 examined.",
+    "Known markets after refresh: 19.",
+    "Total known units: 10472."
   ],
-  "load_errors": [
-    "Bellevue refresh returned zero target rows. Check BELLEVUE_PERMITS_URL or inspect columns_seen in data/refresh_debug.json."
-  ]
+  "load_errors": []
 }

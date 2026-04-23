@@ -1,12 +1,13 @@
 {
-  "errors": [
-    "Bellevue refresh returned zero target rows. Check BELLEVUE_PERMITS_URL or inspect columns_seen in data/refresh_debug.json."
-  ],
-  "seattle_neighborhood_polygons": 20,
-  "seattle_pages": 27,
-  "seattle_rows_kept": 21484,
+  "errors": [],
+  "seattle_neighborhood_features": 20,
+  "seattle_rows_examined": 189499,
+  "seattle_rows_kept": 17345,
+  "seattle_rows_dropped": 81990,
+  "seattle_unknown_geography_rows": 77,
   "bellevue_rows_examined": 380598,
   "bellevue_rows_kept": 0,
+  "bellevue_rows_dropped": 353573,
   "bellevue_columns_seen": [
     "ANC",
     "AWI",
@@ -83,6 +84,5 @@
     "ZipCode",
     "Zoning",
     "\u00ef\u00bb\u00bfX"
-  ],
-  "dropped_examples": []
+  ]
 }
