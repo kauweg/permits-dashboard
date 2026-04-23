@@ -1,14 +1,70 @@
 const state = {
   meta: null,
   summary: null,
-  selectedNeighborhood: 'all',
+  projects: [],
+  filteredProjects: [],
+  selectedId: null,
+  map: null,
+  markerLayer: null,
 };
 
 const byId = (id) => document.getElementById(id);
 
+const HOOD_COORDS = {
+  "West Seattle": [47.571, -122.386],
+  "Admiral": [47.577, -122.387],
+  "Alki": [47.576, -122.409],
+  "Ballard": [47.668, -122.386],
+  "Beacon Hill": [47.579, -122.312],
+  "Belltown": [47.614, -122.349],
+  "Capitol Hill": [47.624, -122.320],
+  "Central District": [47.608, -122.303],
+  "Columbia City": [47.559, -122.286],
+  "Delridge": [47.571, -122.362],
+  "Downtown": [47.6062, -122.3321],
+  "First Hill": [47.609, -122.325],
+  "Fremont": [47.651, -122.350],
+  "Georgetown": [47.548, -122.321],
+  "Greenwood": [47.690, -122.355],
+  "Interbay": [47.642, -122.376],
+  "Lake City": [47.717, -122.297],
+  "Madison Park": [47.633, -122.277],
+  "Magnolia": [47.648, -122.399],
+  "Mount Baker": [47.576, -122.296],
+  "Northgate": [47.708, -122.325],
+  "Phinney Ridge": [47.675, -122.354],
+  "Queen Anne": [47.637, -122.356],
+  "Rainier Beach": [47.522, -122.269],
+  "Rainier Valley": [47.552, -122.285],
+  "Ravenna": [47.675, -122.299],
+  "Roosevelt": [47.681, -122.317],
+  "SODO": [47.579, -122.334],
+  "South Lake Union": [47.623, -122.338],
+  "U District": [47.661, -122.313],
+  "University District": [47.661, -122.313],
+  "Wallingford": [47.661, -122.337],
+  "West Seattle Junction": [47.562, -122.386],
+
+  "Bellevue Downtown": [47.6101, -122.2015],
+  "Downtown Bellevue": [47.6101, -122.2015],
+  "Bellevue": [47.6101, -122.2015],
+  "Wilburton": [47.595, -122.178],
+  "BelRed": [47.630, -122.184],
+  "Crossroads": [47.619, -122.121],
+  "Factoria": [47.576, -122.169],
+  "Eastgate": [47.579, -122.135],
+  "Newport": [47.571, -122.180],
+  "West Bellevue": [47.617, -122.214],
+  "Woodridge": [47.587, -122.153],
+};
+
 function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, (m) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  return String(s ?? "").replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
   }[m]));
 }
 
@@ -16,346 +72,390 @@ function formatNumber(n) {
   return new Intl.NumberFormat().format(Number(n || 0));
 }
 
-function queryString(obj) {
-  return new URLSearchParams(obj).toString();
+function notePills(items) {
+  return (items || []).map(x => `<span class="note-pill">${escapeHtml(x)}</span>`).join("");
 }
 
 async function fetchJson(url) {
-  const r = await fetch(url, { cache: 'no-store' });
+  const r = await fetch(url, { cache: "no-store" });
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   return r.json();
 }
 
-function getFilters() {
-  const neighborhoodSelect = byId('neighborhood');
-  const selectedNeighborhood =
-    state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : (neighborhoodSelect?.value || 'all');
+function normalizeType(row) {
+  const raw = String(
+    row.category ||
+    row.type ||
+    row.project_type ||
+    ""
+  ).trim();
 
-  return {
-    jurisdiction: byId('jurisdiction')?.value || 'all',
-    category: byId('category')?.value || 'all',
-    neighborhood: selectedNeighborhood,
-    start_year: byId('startYear')?.value || '2022',
-    end_year: byId('endYear')?.value || '2026',
-  };
+  if (raw === "New SFR") return "New SFR";
+  if (raw === "New MF") return "New MF";
+  if (raw === "Demo") return "Demo";
+  if (raw === "Other New") return "Other New";
+
+  const text = [
+    row.category,
+    row.type,
+    row.description,
+    row.summary,
+    row.address,
+  ].join(" ").toLowerCase();
+
+  if (text.includes("demo")) return "Demo";
+  if (text.includes("multi")) return "New MF";
+  if (text.includes("single family") || text.includes("sfr")) return "New SFR";
+
+  return "Other New";
 }
 
-function renderLoadMessages(notes, errors) {
-  const notesEl = byId('loadNotes');
-  const errorsEl = byId('loadErrors');
+function normalizeStatus(row) {
+  const text = [
+    row.status,
+    row.permit_status,
+    row.description,
+    row.summary,
+  ].join(" ").toLowerCase();
 
-  if (notesEl) {
-    notesEl.innerHTML = (notes || []).map(n => `<span class="note-pill">${escapeHtml(n)}</span>`).join('');
-  }
-  if (errorsEl) {
-    errorsEl.innerHTML = (errors || []).map(e => `<div>${escapeHtml(e)}</div>`).join('');
-  }
+  if (
+    text.includes("complete") ||
+    text.includes("completed") ||
+    text.includes("final")
+  ) return "Completed";
+
+  if (
+    text.includes("issued") ||
+    text.includes("approved") ||
+    text.includes("ready")
+  ) return "Approved";
+
+  return "Applied";
 }
 
-function populateNeighborhoods(items) {
-  const select = byId('neighborhood');
-  const search = byId('neighborhoodSearch');
-  if (!select) return;
-
-  const current = state.selectedNeighborhood === 'all' ? select.value : state.selectedNeighborhood;
-  select.innerHTML = '<option value="all">All neighborhoods</option>';
-
-  (items || []).forEach((n) => {
-    const opt = document.createElement('option');
-    opt.value = n;
-    opt.textContent = n;
-    select.appendChild(opt);
-  });
-
-  const options = [...select.options];
-  if (options.some(o => o.value === current)) {
-    select.value = current;
-  } else {
-    select.value = 'all';
-    state.selectedNeighborhood = 'all';
-  }
-
-  if (search) {
-    search.value = state.selectedNeighborhood !== 'all' ? state.selectedNeighborhood : '';
-  }
+function parseDate(row) {
+  return row.issue_date || row.intake_date || row.updated || "";
 }
 
-async function loadMeta() {
-  state.meta = await fetchJson('/api/meta');
-  populateNeighborhoods(state.meta.neighborhoods || []);
-  renderLoadMessages(state.meta.load_notes || [], state.meta.load_errors || []);
-}
-
-async function loadSummary() {
-  state.summary = await fetchJson(`/api/summary?${queryString(getFilters())}`);
-  renderLoadMessages(state.summary.load_notes || [], state.summary.load_errors || []);
-  renderCards();
-  renderAnnualChart();
-  renderNeighborhoodTable();
-  renderAnnualNeighborhoodTable();
-  renderDrilldownChart();
-  renderSamples();
-}
-
-function renderCards() {
-  const cardsEl = byId('cards');
-  if (!cardsEl) return;
-
-  const c = state.summary?.cards || {};
-  const cards = [
-    ['Total permits', c.total_permits],
-    ['Seattle', c.seattle_permits],
-    ['Bellevue', c.bellevue_permits],
-    ['Known neighborhoods', c.known_neighborhoods],
-    ['All New', c.all_new ?? ((c.new_sfr || 0) + (c.new_mf || 0) + (c.other_new || 0))],
-    ['New MF', c.new_mf],
-    ['Other New', c.other_new],
-    ['Demo', c.demo],
-  ];
-
-  cardsEl.innerHTML = cards.map(([label, value]) => `
-    <article class="card">
-      <div class="card-label">${escapeHtml(label)}</div>
-      <div class="card-value">${formatNumber(value)}</div>
-    </article>
-  `).join('');
-}
-
-function drawGroupedBars(canvas, labels, series, valueElId) {
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  const rect = canvas.getBoundingClientRect();
-  const width = Math.max(300, Math.floor(rect.width));
-  const height = Math.max(220, Math.floor(rect.height || canvas.height || 260));
-  const ratio = window.devicePixelRatio || 1;
-
-  canvas.width = Math.floor(width * ratio);
-  canvas.height = Math.floor(height * ratio);
-  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  ctx.clearRect(0, 0, width, height);
-
-  const margin = { left: 46, right: 20, top: 18, bottom: 40 };
-  const plotW = width - margin.left - margin.right;
-  const plotH = height - margin.top - margin.bottom;
-  const colors = ['#6d8fb3', '#9cb4c9', '#87a9a4', '#d8a45b'];
-
-  const allValues = series.flatMap(s => s.values);
-  const maxVal = Math.max(1, ...allValues, 0);
-
-  ctx.strokeStyle = '#d6dee8';
-  ctx.fillStyle = '#6b7785';
-  ctx.font = '12px Arial';
-
-  for (let i = 0; i <= 4; i++) {
-    const y = margin.top + plotH - (plotH * i / 4);
-    ctx.beginPath();
-    ctx.moveTo(margin.left, y);
-    ctx.lineTo(width - margin.right, y);
-    ctx.stroke();
-    ctx.fillText(String(Math.round(maxVal * i / 4)), 8, y + 4);
-  }
-
-  const groupW = plotW / Math.max(1, labels.length);
-  const barW = Math.min(22, Math.max(10, (groupW - 12) / Math.max(1, series.length)));
-  const hitboxes = [];
-
-  labels.forEach((label, li) => {
-    const gx = margin.left + li * groupW + 6;
-
-    series.forEach((s, si) => {
-      const val = Number(s.values[li] || 0);
-      const barH = (val / maxVal) * plotH;
-      const x = gx + si * barW;
-      const y = margin.top + plotH - barH;
-      ctx.fillStyle = colors[si % colors.length];
-      ctx.fillRect(x, y, barW - 2, barH);
-
-      hitboxes.push({
-        x, y, w: barW - 2, h: barH,
-        label, series: s.name, value: val
-      });
-    });
-
-    ctx.fillStyle = '#334155';
-    ctx.fillText(String(label), gx, height - 10);
-  });
-
-  canvas.onclick = (evt) => {
-    const r = canvas.getBoundingClientRect();
-    const x = evt.clientX - r.left;
-    const y = evt.clientY - r.top;
-    const hit = hitboxes.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
-    const valueEl = byId(valueElId);
-    if (!valueEl) return;
-
-    if (hit) {
-      valueEl.textContent = `${hit.label} • ${hit.series}: ${formatNumber(hit.value)}`;
-    } else {
-      valueEl.textContent = 'Click a bar for details.';
-    }
-  };
-}
-
-function renderAnnualChart() {
-  const data = state.summary?.annual_series || [];
-  drawGroupedBars(
-    byId('annualChart'),
-    data.map(r => r.year),
-    [
-      { name: 'New SFR', values: data.map(r => r['New SFR'] || 0) },
-      { name: 'New MF', values: data.map(r => r['New MF'] || 0) },
-      { name: 'Other New', values: data.map(r => r['Other New'] || 0) },
-      { name: 'Demo', values: data.map(r => r['Demo'] || 0) },
-    ],
-    'annualChartValue'
+function parsePermit(row, idx) {
+  return (
+    row.permit ||
+    row.permit_number ||
+    row.id ||
+    row.number ||
+    `Permit-${idx + 1}`
   );
 }
 
-function renderDrilldownChart() {
-  const rows = state.summary?.neighborhood_rows || [];
-  const current = state.selectedNeighborhood !== 'all'
-    ? rows.find(r => r.neighborhood === state.selectedNeighborhood)
-    : rows[0];
+function cleanNeighborhood(row) {
+  const n = String(row.neighborhood || "").trim();
+  if (!n || n.toLowerCase() === "unknown") {
+    return row.jurisdiction === "Bellevue" ? "Bellevue" : "Unknown";
+  }
+  return n;
+}
 
-  const title = byId('drilldownTitle');
-  if (title) title.textContent = current ? current.neighborhood : 'No neighborhood selected';
+function hasValidCoord(val) {
+  return val !== null && val !== undefined && val !== "" && !Number.isNaN(Number(val));
+}
 
-  if (!current) {
-    drawGroupedBars(byId('drilldownChart'), [], [], 'drilldownChartValue');
+function jitter(baseLat, baseLng, idx) {
+  const lat = baseLat + ((idx % 7) - 3) * 0.0022;
+  const lng = baseLng + ((Math.floor(idx / 7) % 7) - 3) * 0.0022;
+  return [lat, lng];
+}
+
+function resolveCoords(row, idx) {
+  const lat = row.latitude ?? row.lat;
+  const lng = row.longitude ?? row.lng ?? row.lon;
+
+  if (hasValidCoord(lat) && hasValidCoord(lng)) {
+    return [Number(lat), Number(lng)];
+  }
+
+  const hood = cleanNeighborhood(row);
+  if (HOOD_COORDS[hood]) {
+    return jitter(HOOD_COORDS[hood][0], HOOD_COORDS[hood][1], idx);
+  }
+
+  if (row.jurisdiction === "Bellevue") {
+    return jitter(47.6101, -122.2015, idx);
+  }
+
+  return jitter(47.6062, -122.3321, idx);
+}
+
+function buildProjects(summary) {
+  const rows =
+    Array.isArray(summary?.map_points) && summary.map_points.length
+      ? summary.map_points
+      : (summary?.samples || []);
+
+  return rows.map((row, idx) => {
+    const neighborhood = cleanNeighborhood(row);
+    const city = row.jurisdiction || row.city || "Seattle";
+    const type = normalizeType(row);
+    const status = normalizeStatus(row);
+    const [lat, lng] = resolveCoords(row, idx);
+
+    return {
+      id: `${parsePermit(row, idx)}-${idx}`,
+      address: row.address || `Project ${idx + 1}`,
+      neighborhood,
+      city,
+      type,
+      status,
+      permit: parsePermit(row, idx),
+      updated: parseDate(row),
+      summary:
+        row.summary ||
+        row.description ||
+        `${type} activity in ${neighborhood}, ${city}.`,
+      latitude: lat,
+      longitude: lng,
+      raw: row,
+    };
+  });
+}
+
+function initMap() {
+  if (state.map) return;
+
+  state.map = L.map("permitMap", {
+    zoomControl: true,
+    preferCanvas: true,
+  }).setView([47.6062, -122.3321], 11);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  }).addTo(state.map);
+
+  state.markerLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: true,
+    disableClusteringAtZoom: 15,
+    chunkedLoading: true,
+  });
+
+  state.map.addLayer(state.markerLayer);
+}
+
+function markerColor(type) {
+  if (type === "Demo") return "#b45309";
+  if (type === "New MF") return "#1d4ed8";
+  if (type === "New SFR") return "#0f766e";
+  return "#475569";
+}
+
+function makeMarker(project) {
+  const icon = L.divIcon({
+    className: "custom-marker-wrap",
+    html: `<div class="custom-marker" style="background:${markerColor(project.type)}"></div>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -10],
+  });
+
+  const marker = L.marker([project.latitude, project.longitude], { icon });
+
+  marker.on("click", () => {
+    state.selectedId = project.id;
+    renderDetail(project);
+    highlightSelectedRow();
+  });
+
+  marker.bindPopup(`
+    <div class="popup-card">
+      <div class="popup-title">${escapeHtml(project.address)}</div>
+      <div>${escapeHtml(project.neighborhood)} • ${escapeHtml(project.city)}</div>
+      <div>${escapeHtml(project.type)} • ${escapeHtml(project.status)}</div>
+      <div>${escapeHtml(project.permit)}</div>
+    </div>
+  `);
+
+  return marker;
+}
+
+function renderCounts() {
+  const visible = state.filteredProjects.length;
+  const seattle = state.filteredProjects.filter(p => p.city === "Seattle").length;
+  const bellevue = state.filteredProjects.filter(p => p.city === "Bellevue").length;
+
+  byId("visibleCount").textContent = formatNumber(visible);
+  byId("seattleCount").textContent = formatNumber(seattle);
+  byId("bellevueCount").textContent = formatNumber(bellevue);
+  byId("projectListCount").textContent = `${formatNumber(visible)} projects`;
+}
+
+function renderList() {
+  const el = byId("projectList");
+  const rows = state.filteredProjects.slice(0, 300);
+
+  if (!rows.length) {
+    el.innerHTML = `<div class="empty-state">No matching projects.</div>`;
     return;
   }
 
-  const labels = Object.keys(current.years || {});
-  drawGroupedBars(
-    byId('drilldownChart'),
-    labels,
-    [
-      { name: 'New SFR', values: labels.map(y => current.years[y]['New SFR'] || 0) },
-      { name: 'New MF', values: labels.map(y => current.years[y]['New MF'] || 0) },
-      { name: 'Other New', values: labels.map(y => current.years[y]['Other New'] || 0) },
-      { name: 'Demo', values: labels.map(y => current.years[y]['Demo'] || 0) },
-    ],
-    'drilldownChartValue'
-  );
-}
+  el.innerHTML = rows.map(project => `
+    <button class="project-row ${state.selectedId === project.id ? "active" : ""}" data-project-id="${escapeHtml(project.id)}">
+      <div class="project-row-title">${escapeHtml(project.address)}</div>
+      <div class="project-row-sub">${escapeHtml(project.neighborhood)} • ${escapeHtml(project.city)}</div>
+      <div class="project-row-tags">
+        <span class="tag">${escapeHtml(project.status)}</span>
+        <span class="tag">${escapeHtml(project.type)}</span>
+      </div>
+    </button>
+  `).join("");
 
-function renderNeighborhoodTable() {
-  const table = byId('neighborhoodTable');
-  if (!table) return;
-
-  const tbody = table.querySelector('tbody');
-  const rows = state.summary?.neighborhood_rows || [];
-
-  tbody.innerHTML = rows.slice(0, 50).map(r => {
-    const allNew = (r.totals['New SFR'] || 0) + (r.totals['New MF'] || 0) + (r.totals['Other New'] || 0);
-    const selected = r.neighborhood === state.selectedNeighborhood ? 'selected' : '';
-    return `
-      <tr data-neighborhood="${escapeHtml(r.neighborhood)}" class="${selected}">
-        <td>${escapeHtml(r.neighborhood)}</td>
-        <td>${formatNumber(r.totals.Total)}</td>
-        <td>${formatNumber(allNew)}</td>
-        <td>${formatNumber(r.totals['New MF'])}</td>
-        <td>${formatNumber(r.totals['Other New'])}</td>
-        <td>${formatNumber(r.totals['Demo'])}</td>
-      </tr>
-    `;
-  }).join('');
-
-  tbody.querySelectorAll('tr').forEach((tr) => {
-    tr.addEventListener('click', async () => {
-      state.selectedNeighborhood = tr.dataset.neighborhood;
-      const sel = byId('neighborhood');
-      const search = byId('neighborhoodSearch');
-      if (sel) sel.value = state.selectedNeighborhood;
-      if (search) search.value = state.selectedNeighborhood;
-      await loadSummary();
+  el.querySelectorAll(".project-row").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-project-id");
+      const project = state.filteredProjects.find(p => p.id === id);
+      if (!project) return;
+      state.selectedId = project.id;
+      renderDetail(project);
+      highlightSelectedRow();
+      state.map.setView([project.latitude, project.longitude], 15);
     });
   });
 }
 
-function renderAnnualNeighborhoodTable() {
-  const table = byId('annualNeighborhoodTable');
-  if (!table) return;
-
-  const rows = state.summary?.neighborhood_rows || [];
-  const target = state.selectedNeighborhood !== 'all'
-    ? rows.filter(r => r.neighborhood === state.selectedNeighborhood)
-    : rows.slice(0, 12);
-  const years = (state.summary?.annual_series || []).map(r => r.year);
-
-  table.querySelector('thead').innerHTML =
-    `<tr><th>Neighborhood</th>${years.map(y => `<th>${y}</th>`).join('')}<th>Total</th></tr>`;
-
-  table.querySelector('tbody').innerHTML = target.map(r => `
-    <tr>
-      <td>${escapeHtml(r.neighborhood)}</td>
-      ${years.map(y => `<td>${formatNumber((r.years[String(y)] || {}).Total || 0)}</td>`).join('')}
-      <td>${formatNumber(r.totals.Total)}</td>
-    </tr>
-  `).join('');
+function highlightSelectedRow() {
+  document.querySelectorAll(".project-row").forEach(row => {
+    row.classList.toggle("active", row.getAttribute("data-project-id") === state.selectedId);
+  });
 }
 
-function renderSamples() {
-  const panel = byId('recentExamplesPanel');
-  if (panel) panel.style.display = 'none';
+function renderDetail(project) {
+  const el = byId("detailCard");
 
-  const table = byId('sampleTable');
-  if (!table) return;
+  if (!project) {
+    el.innerHTML = `<div class="muted">Select a project from the list or the map.</div>`;
+    return;
+  }
 
-  const tbody = table.querySelector('tbody');
-  const samples = state.summary?.samples || [];
+  el.innerHTML = `
+    <div class="detail-title">${escapeHtml(project.address)}</div>
+    <div class="detail-sub">${escapeHtml(project.neighborhood)} • ${escapeHtml(project.city)}</div>
 
-  tbody.innerHTML = samples.slice(0, 20).map(r => `
-    <tr>
-      <td>${escapeHtml(r.jurisdiction)}</td>
-      <td>${escapeHtml(r.category)}</td>
-      <td>${escapeHtml(r.neighborhood)}</td>
-      <td>${escapeHtml(r.address)}</td>
-      <td>${escapeHtml((r.issue_date || r.intake_date || '').slice(0, 10))}</td>
-    </tr>
-  `).join('');
+    <div class="detail-grid">
+      <div class="detail-stat">
+        <div class="detail-stat-label">Status</div>
+        <div class="detail-stat-value">${escapeHtml(project.status)}</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Type</div>
+        <div class="detail-stat-value">${escapeHtml(project.type)}</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Permit</div>
+        <div class="detail-stat-value">${escapeHtml(project.permit)}</div>
+      </div>
+      <div class="detail-stat">
+        <div class="detail-stat-label">Updated</div>
+        <div class="detail-stat-value">${escapeHtml(project.updated || "—")}</div>
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Summary</div>
+      <div class="detail-copy">${escapeHtml(project.summary)}</div>
+    </div>
+  `;
+}
+
+function renderMap() {
+  if (!state.map || !state.markerLayer) return;
+
+  state.markerLayer.clearLayers();
+
+  if (!state.filteredProjects.length) return;
+
+  const markers = state.filteredProjects.map(project => makeMarker(project));
+  state.markerLayer.addLayers(markers);
+
+  const bounds = L.latLngBounds(
+    state.filteredProjects.map(p => [p.latitude, p.longitude])
+  );
+
+  if (bounds.isValid()) {
+    state.map.fitBounds(bounds, { padding: [25, 25] });
+  }
+}
+
+function applyFilters() {
+  const q = (byId("searchInput").value || "").trim().toLowerCase();
+  const city = byId("cityFilter").value;
+  const status = byId("statusFilter").value;
+  const type = byId("typeFilter").value;
+
+  state.filteredProjects = state.projects.filter(project => {
+    const haystack = [
+      project.address,
+      project.neighborhood,
+      project.city,
+      project.permit,
+      project.summary,
+    ].join(" ").toLowerCase();
+
+    const qMatch = !q || haystack.includes(q);
+    const cityMatch = city === "all" || project.city === city;
+    const statusMatch = status === "all" || project.status === status;
+    const typeMatch = type === "all" || project.type === type;
+
+    return qMatch && cityMatch && statusMatch && typeMatch;
+  });
+
+  if (!state.filteredProjects.some(p => p.id === state.selectedId)) {
+    state.selectedId = state.filteredProjects[0]?.id || null;
+  }
+
+  renderCounts();
+  renderList();
+  renderMap();
+
+  const selected = state.filteredProjects.find(p => p.id === state.selectedId) || state.filteredProjects[0] || null;
+  renderDetail(selected);
+  highlightSelectedRow();
 }
 
 function wireEvents() {
-  ['jurisdiction', 'category', 'neighborhood', 'startYear', 'endYear'].forEach((id) => {
+  ["searchInput", "cityFilter", "statusFilter", "typeFilter"].forEach(id => {
     const el = byId(id);
     if (!el) return;
-
-    el.addEventListener('change', async () => {
-      if (id === 'neighborhood') {
-        state.selectedNeighborhood = byId('neighborhood').value;
-      }
-      await loadSummary();
-    });
+    const evt = id === "searchInput" ? "input" : "change";
+    el.addEventListener(evt, applyFilters);
   });
+}
 
-  const neighborhoodSearch = byId('neighborhoodSearch');
-  if (neighborhoodSearch) {
-    neighborhoodSearch.addEventListener('input', () => {
-      const q = neighborhoodSearch.value.trim().toLowerCase();
-      const select = byId('neighborhood');
-      if (!select) return;
-      const hit = [...select.options].find(o => o.value !== 'all' && o.value.toLowerCase().includes(q));
-      if (hit) select.value = hit.value;
-    });
+async function boot() {
+  try {
+    const [meta, summary] = await Promise.all([
+      fetchJson("/api/meta"),
+      fetchJson("/api/summary"),
+    ]);
 
-    neighborhoodSearch.addEventListener('change', async () => {
-      const select = byId('neighborhood');
-      if (!select) return;
-      state.selectedNeighborhood = select.value;
-      await loadSummary();
-    });
+    state.meta = meta;
+    state.summary = summary;
+    state.projects = buildProjects(summary);
+
+    byId("loadNotes").innerHTML = notePills([
+      ...(meta.load_notes || []),
+      ...(summary.load_notes || []),
+    ]);
+
+    byId("loadErrors").innerHTML = ([
+      ...(meta.load_errors || []),
+      ...(summary.load_errors || []),
+    ]).map(x => `<div class="error-pill">${escapeHtml(x)}</div>`).join("");
+
+    initMap();
+    wireEvents();
+    applyFilters();
+  } catch (err) {
+    byId("loadErrors").innerHTML = `<div class="error-pill">${escapeHtml(err.message || String(err))}</div>`;
   }
 }
 
-window.addEventListener('DOMContentLoaded', async () => {
-  wireEvents();
-  try {
-    await loadMeta();
-    await loadSummary();
-  } catch (err) {
-    renderLoadMessages([], [err.message || String(err)]);
-    console.error(err);
-  }
-});
+window.addEventListener("DOMContentLoaded", boot);
