@@ -2,12 +2,147 @@ const state = {
   meta: null,
   summary: null,
   selectedNeighborhood: "all",
-  selectedSlice: null, // { year, category }
+  selectedSlice: null,
   map: null,
   mapLayer: null,
 };
 
 const byId = (id) => document.getElementById(id);
+
+const MARKET_NAME_MAP = [
+  {
+    short: "West Seattle",
+    matches: [
+      "seaview", "gatewood", "arbor heights", "alki", "north admiral",
+      "fairmount park", "genesee", "fauntleroy", "morgan junction",
+      "alaska junction", "belvidere", "west seattle junction",
+      "brace point", "endolyne", "arroyo heights",
+      "highland park", "north delridge", "south delridge",
+      "high point", "roxhill", "westwood", "avalon",
+      "luna park", "pigeon point", "delridge", "west seattle"
+    ]
+  },
+  {
+    short: "Downtown Seattle",
+    matches: [
+      "pike-market", "belltown", "international district",
+      "central business district", "first hill", "yesler terrace",
+      "pioneer square", "denny regrade", "denny triangle",
+      "commercial core", "west edge", "pike place market",
+      "chinatown", "little saigon", "id"
+    ]
+  },
+  {
+    short: "Ballard",
+    matches: [
+      "loyal heights", "adams", "whittier heights", "west woodland",
+      "sunset hill", "golden gardens", "shilshole", "ballard"
+    ]
+  },
+  {
+    short: "Wallingford / Fremont",
+    matches: [
+      "phinney ridge", "wallingford", "fremont", "green lake",
+      "woodland park", "meridian", "northlake", "tangle town"
+    ]
+  },
+  {
+    short: "North Seattle",
+    matches: [
+      "broadview", "bitter lake", "north beach/blue ridge", "crown hill",
+      "greenwood", "haller lake", "pinehurst", "north college park",
+      "maple leaf", "jackson park", "licton springs", "olympic view",
+      "victory heights", "matthews beach", "meadowbrook",
+      "olympic hills", "cedar park"
+    ]
+  },
+  {
+    short: "Northeast Seattle",
+    matches: [
+      "view ridge", "ravenna", "sand point", "bryant", "windermere",
+      "laurelhurst", "roosevelt", "wedgwood", "hawthorne hills",
+      "university village", "fairview"
+    ]
+  },
+  {
+    short: "Central Seattle",
+    matches: [
+      "madrona", "harrison/denny-blaine", "minor", "leschi", "mann",
+      "atlantic", "squire park", "judkins park", "central district",
+      "colman", "garfield", "jackson place"
+    ]
+  },
+  {
+    short: "South Seattle",
+    matches: [
+      "brighton", "dunlap", "rainier beach", "mount baker",
+      "columbia city", "north rainier", "lake ridge",
+      "rainier view", "columbia heights", "seward park",
+      "lakewood", "hillman city"
+    ]
+  },
+  {
+    short: "Queen Anne / Magnolia",
+    matches: [
+      "east queen anne", "west queen anne", "lower queen anne",
+      "north queen anne", "uptown", "seattle center",
+      "lawton park", "briarcliff", "southeast magnolia", "carleton park"
+    ]
+  },
+  {
+    short: "Beacon Hill",
+    matches: [
+      "north beacon hill", "mid-beacon hill", "south beacon hill",
+      "holly park", "jefferson park", "new holly"
+    ]
+  },
+  {
+    short: "South Lake Union / Eastlake",
+    matches: ["westlake", "eastlake", "south lake union"]
+  },
+  {
+    short: "U District",
+    matches: ["university district", "cowen park", "university heights"]
+  },
+  {
+    short: "Interbay",
+    matches: ["interbay"]
+  },
+  {
+    short: "Bellevue Downtown",
+    matches: ["bellevue downtown", "downtown bellevue"]
+  },
+  {
+    short: "Wilburton",
+    matches: ["wilburton"]
+  },
+  {
+    short: "Eastgate",
+    matches: ["eastgate"]
+  },
+  {
+    short: "Bellevue",
+    matches: ["bellevue"]
+  }
+];
+
+function shortMarketName(name = "") {
+  const raw = String(name || "").toLowerCase();
+  for (const bucket of MARKET_NAME_MAP) {
+    if (bucket.matches.some((m) => raw.includes(m))) return bucket.short;
+  }
+  return name || "Unknown";
+}
+
+function rowUnits(row) {
+  return Number(
+    row?.totals?.units ||
+    row?.totals?.total_units ||
+    row?.units ||
+    row?.unit_count ||
+    0
+  );
+}
 
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({
@@ -119,42 +254,42 @@ async function loadSummary() {
   renderMap();
 }
 
-function totalUnitsFromSummary() {
-  const cards = state.summary?.cards || {};
-  return cards.total_units || cards.units || 0;
-}
-
 function renderCards() {
   const cardsEl = byId("cards");
   if (!cardsEl) return;
 
   const c = state.summary?.cards || {};
-  const allNew =
-    c.all_new ??
-    ((c.new_sfr || 0) + (c.new_mf || 0) + (c.other_new || 0));
-
   const rows = state.summary?.neighborhood_rows || [];
-  const topNeighborhood = rows.length ? rows[0].neighborhood : "—";
+
+  const topByPermits = rows.length
+    ? shortMarketName(rows[0].neighborhood)
+    : "—";
+
+  const topByUnits = [...rows].sort((a, b) => rowUnits(b) - rowUnits(a))[0];
+  const topUnitsMarket = topByUnits ? shortMarketName(topByUnits.neighborhood) : "—";
+
+  const totalUnits = c.total_units || c.units || 0;
+  const totalPermits = c.total_permits || 0;
+  const avgUnits = totalPermits ? (totalUnits / totalPermits).toFixed(1) : "0.0";
 
   const cards = [
-    ["Total permits", c.total_permits],
-    ["All New", allNew],
-    ["Demo", c.demo],
-    ["Seattle", c.seattle_permits],
-    ["Bellevue", c.bellevue_permits],
-    ["Total Units", totalUnitsFromSummary()],
-    ["Known neighborhoods", c.known_neighborhoods],
-    ["Top neighborhood", topNeighborhood],
+    ["Total permits", totalPermits],
+    ["Total units", totalUnits],
+    ["Avg units / permit", avgUnits],
+    ["All New", c.all_new ?? ((c.new_sfr || 0) + (c.new_mf || 0) + (c.other_new || 0))],
+    ["Demo", c.demo || 0],
+    ["Seattle", c.seattle_permits || 0],
+    ["Bellevue", c.bellevue_permits || 0],
+    ["Top permits area", topByPermits],
+    ["Top units area", topUnitsMarket],
   ];
 
-  cardsEl.innerHTML = cards
-    .map(([label, value]) => `
-      <article class="card executive-card">
-        <div class="card-label">${escapeHtml(label)}</div>
-        <div class="card-value">${typeof value === "number" ? formatNumber(value) : escapeHtml(value)}</div>
-      </article>
-    `)
-    .join("");
+  cardsEl.innerHTML = cards.map(([label, value]) => `
+    <article class="card executive-card">
+      <div class="card-label">${escapeHtml(label)}</div>
+      <div class="card-value">${typeof value === "number" ? formatNumber(value) : escapeHtml(value)}</div>
+    </article>
+  `).join("");
 }
 
 function drawGroupedBars(canvas, labels, series, valueElId, clickHandler) {
@@ -269,30 +404,46 @@ function renderAnnualChart() {
 
 function renderDrilldownChart() {
   const rows = state.summary?.neighborhood_rows || [];
-  const current =
+
+  const grouped = {};
+  rows.forEach((r) => {
+    const market = shortMarketName(r.neighborhood);
+    if (!grouped[market]) grouped[market] = {};
+    Object.entries(r.years || {}).forEach(([year, vals]) => {
+      if (!grouped[market][year]) {
+        grouped[market][year] = { "New SFR": 0, "New MF": 0, "Other New": 0, "Demo": 0, Total: 0 };
+      }
+      grouped[market][year]["New SFR"] += Number(vals["New SFR"] || 0);
+      grouped[market][year]["New MF"] += Number(vals["New MF"] || 0);
+      grouped[market][year]["Other New"] += Number(vals["Other New"] || 0);
+      grouped[market][year]["Demo"] += Number(vals["Demo"] || 0);
+      grouped[market][year]["Total"] += Number(vals["Total"] || 0);
+    });
+  });
+
+  const marketName =
     state.selectedNeighborhood !== "all"
-      ? rows.find((r) => r.neighborhood === state.selectedNeighborhood)
-      : rows[0];
+      ? state.selectedNeighborhood
+      : Object.keys(grouped)[0];
 
   const title = byId("drilldownTitle");
-  if (title) {
-    title.textContent = current ? current.neighborhood : "No neighborhood selected";
-  }
+  if (title) title.textContent = marketName || "No market selected";
 
-  if (!current) {
+  if (!marketName || !grouped[marketName]) {
     drawGroupedBars(byId("drilldownChart"), [], [], "drilldownChartValue");
     return;
   }
 
-  const labels = Object.keys(current.years || {});
+  const years = Object.keys(grouped[marketName]).sort();
+
   drawGroupedBars(
     byId("drilldownChart"),
-    labels,
+    years,
     [
-      { name: "New SFR", values: labels.map((y) => current.years[y]["New SFR"] || 0) },
-      { name: "New MF", values: labels.map((y) => current.years[y]["New MF"] || 0) },
-      { name: "Other New", values: labels.map((y) => current.years[y]["Other New"] || 0) },
-      { name: "Demo", values: labels.map((y) => current.years[y]["Demo"] || 0) },
+      { name: "New SFR", values: years.map((y) => grouped[marketName][y]["New SFR"] || 0) },
+      { name: "New MF", values: years.map((y) => grouped[marketName][y]["New MF"] || 0) },
+      { name: "Other New", values: years.map((y) => grouped[marketName][y]["Other New"] || 0) },
+      { name: "Demo", values: years.map((y) => grouped[marketName][y]["Demo"] || 0) },
     ],
     "drilldownChartValue"
   );
@@ -305,39 +456,48 @@ function renderNeighborhoodTable() {
   const tbody = table.querySelector("tbody");
   const rows = state.summary?.neighborhood_rows || [];
 
-  tbody.innerHTML = rows.slice(0, 50).map((r) => {
-    const allNew =
-      (r.totals["New SFR"] || 0) +
-      (r.totals["New MF"] || 0) +
-      (r.totals["Other New"] || 0);
+  const grouped = {};
 
-    const units =
-      r.totals.units ||
-      r.totals.total_units ||
-      0;
+  rows.forEach((r) => {
+    const market = shortMarketName(r.neighborhood);
+    if (!grouped[market]) {
+      grouped[market] = {
+        market,
+        permits: 0,
+        units: 0,
+        allNew: 0,
+        demo: 0,
+      };
+    }
 
-    const selected = r.neighborhood === state.selectedNeighborhood ? "selected" : "";
+    grouped[market].permits += Number(r.totals?.Total || 0);
+    grouped[market].units += rowUnits(r);
+    grouped[market].allNew +=
+      Number(r.totals?.["New SFR"] || 0) +
+      Number(r.totals?.["New MF"] || 0) +
+      Number(r.totals?.["Other New"] || 0);
+    grouped[market].demo += Number(r.totals?.["Demo"] || 0);
+  });
 
-    return `
-      <tr data-neighborhood="${escapeHtml(r.neighborhood)}" class="${selected}">
-        <td>${escapeHtml(r.neighborhood)}</td>
-        <td>${formatNumber(r.totals.Total)}</td>
-        <td>${formatNumber(units)}</td>
-        <td>${formatNumber(allNew)}</td>
-        <td>${formatNumber(r.totals["Demo"])}</td>
-      </tr>
-    `;
-  }).join("");
+  const groupedRows = Object.values(grouped).sort((a, b) => b.permits - a.permits);
+
+  tbody.innerHTML = groupedRows.map((r) => `
+    <tr data-market="${escapeHtml(r.market)}">
+      <td>${escapeHtml(r.market)}</td>
+      <td>${formatNumber(r.permits)}</td>
+      <td>${formatNumber(r.units)}</td>
+      <td>${formatNumber(r.allNew)}</td>
+      <td>${formatNumber(r.demo)}</td>
+    </tr>
+  `).join("");
 
   tbody.querySelectorAll("tr").forEach((tr) => {
-    tr.addEventListener("click", async () => {
-      state.selectedNeighborhood = tr.dataset.neighborhood;
-      const sel = byId("neighborhood");
-      const search = byId("neighborhoodSearch");
-      if (sel) sel.value = state.selectedNeighborhood;
-      if (search) search.value = state.selectedNeighborhood;
-      await loadSummary();
-      byId("mapContext").textContent = `Neighborhood • ${state.selectedNeighborhood}`;
+    tr.addEventListener("click", () => {
+      state.selectedNeighborhood = tr.dataset.market;
+      byId("mapContext").textContent = `Market • ${state.selectedNeighborhood}`;
+      renderProjectTable();
+      renderMap();
+      renderDrilldownChart();
     });
   });
 }
@@ -345,16 +505,22 @@ function renderNeighborhoodTable() {
 function neighborhoodCenter(name) {
   const map = {
     "West Seattle": [47.571, -122.386],
+    "Downtown Seattle": [47.6062, -122.3321],
+    "Ballard": [47.668, -122.386],
+    "Wallingford / Fremont": [47.655, -122.344],
+    "North Seattle": [47.700, -122.340],
+    "Northeast Seattle": [47.675, -122.299],
+    "Central Seattle": [47.608, -122.303],
+    "South Seattle": [47.558, -122.287],
+    "Queen Anne / Magnolia": [47.640, -122.372],
+    "Beacon Hill": [47.579, -122.312],
+    "South Lake Union / Eastlake": [47.628, -122.338],
+    "U District": [47.661, -122.313],
+    "Interbay": [47.642, -122.376],
     "Bellevue Downtown": [47.6101, -122.2015],
     "Wilburton": [47.595, -122.178],
-    "Ballard": [47.668, -122.386],
-    "Queen Anne": [47.637, -122.356],
-    "Capitol Hill": [47.624, -122.320],
-    "Wallingford": [47.661, -122.337],
-    "Mount Baker": [47.576, -122.296],
-    "Central District": [47.608, -122.303],
-    "Beacon Hill": [47.579, -122.312],
-    "Downtown": [47.6062, -122.3321],
+    "Eastgate": [47.579, -122.135],
+    "Bellevue": [47.6101, -122.2015],
     "Unknown": [47.6062, -122.3321],
   };
 
@@ -369,12 +535,13 @@ function buildProjectRows() {
   return base.map((row, idx) => {
     const category = row.category || "Other New";
     const year = Number(String(row.issue_date || row.intake_date || "").slice(0, 4)) || null;
+    const market = shortMarketName(row.neighborhood || "Unknown");
 
     let lat = row.latitude ?? row.lat ?? null;
     let lng = row.longitude ?? row.lng ?? row.lon ?? null;
 
     if (lat == null || lng == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) {
-      const center = neighborhoodCenter(row.neighborhood || "Unknown");
+      const center = neighborhoodCenter(market);
       lat = center[0] + ((idx % 7) - 3) * 0.0018;
       lng = center[1] + ((Math.floor(idx / 7) % 7) - 3) * 0.0018;
     }
@@ -382,9 +549,10 @@ function buildProjectRows() {
     return {
       address: row.address || `Project ${idx + 1}`,
       neighborhood: row.neighborhood || "Unknown",
+      market,
       jurisdiction: row.jurisdiction || "Seattle",
       category,
-      units: row.units || row.unit_count || 0,
+      units: Number(row.units || row.unit_count || 0),
       issue_date: row.issue_date || row.intake_date || "",
       year,
       latitude: Number(lat),
@@ -405,7 +573,7 @@ function filteredProjectRows() {
   }
 
   if (state.selectedNeighborhood !== "all") {
-    rows = rows.filter((r) => r.neighborhood === state.selectedNeighborhood);
+    rows = rows.filter((r) => shortMarketName(r.neighborhood) === state.selectedNeighborhood);
   }
 
   const jurisdiction = byId("jurisdiction")?.value || "all";
@@ -431,7 +599,7 @@ function renderProjectTable() {
   tbody.innerHTML = rows.slice(0, 250).map((r) => `
     <tr>
       <td>${escapeHtml(r.address)}</td>
-      <td>${escapeHtml(r.neighborhood)}</td>
+      <td>${escapeHtml(r.market)}</td>
       <td>${escapeHtml(r.category)}</td>
       <td>${formatNumber(r.units)}</td>
       <td>${escapeHtml((r.issue_date || "").slice(0, 10))}</td>
@@ -500,7 +668,7 @@ function renderMap() {
     marker.bindPopup(`
       <div class="popup-card">
         <div class="popup-title">${escapeHtml(r.address)}</div>
-        <div>${escapeHtml(r.neighborhood)} • ${escapeHtml(r.jurisdiction)}</div>
+        <div>${escapeHtml(r.market)} • ${escapeHtml(r.jurisdiction)}</div>
         <div>${escapeHtml(r.category)}</div>
         <div>Units: ${formatNumber(r.units)}</div>
         <div>Issued: ${escapeHtml((r.issue_date || "").slice(0, 10))}</div>
