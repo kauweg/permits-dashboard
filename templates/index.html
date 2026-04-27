@@ -1,3 +1,4 @@
+\
 <!doctype html>
 <html lang="en">
 <head>
@@ -11,38 +12,155 @@
   <div class="page">
     <header class="hero">
       <div class="eyebrow">Neighborhood Trajectory Tool</div>
-      <h1>Seattle + Bellevue permit trajectory dashboard</h1>
-      <p class="subhead">Compare neighborhood permit history, trajectory, saturation, and underserved development opportunities.</p>
+      <h1>Seattle permit trajectory dashboard</h1>
+      <p class="subhead">
+        Compare neighborhood permit history, trajectory, saturation, and underserved development opportunities.
+      </p>
     </header>
 
     <section class="filters panel">
       <div class="filter-grid">
-        <label><span>Jurisdiction</span><select id="jurisdiction"><option value="all">All</option><option value="Seattle">Seattle</option><option value="Bellevue">Bellevue</option></select></label>
-        <label><span>Category</span><select id="category"><option value="all">All</option><option value="New SFR">New SFR</option><option value="New MF">New MF</option><option value="Demo">Demo</option></select></label>
-        <label><span>Market rollup</span><select id="market"><option value="all">All markets</option></select></label>
-        <label><span>Neighborhood</span><select id="neighborhood"><option value="all">All neighborhoods</option></select></label>
-        <label><span>Start year</span><select id="startYear"><option value="2022" selected>2022</option><option value="2023">2023</option><option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option></select></label>
-        <label><span>End year</span><select id="endYear"><option value="2022">2022</option><option value="2023">2023</option><option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option></select></label>
+        <label>
+          <span>Jurisdiction</span>
+          <select id="jurisdiction">
+            <option value="all">All</option>
+            <option value="Seattle">Seattle</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Category</span>
+          <select id="category">
+            <option value="all">All</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Market rollup</span>
+          <select id="market">
+            <option value="all">All markets</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Neighborhood</span>
+          <select id="neighborhood">
+            <option value="all">All neighborhoods</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Start year</span>
+          <select id="startYear">
+            <option value="2022" selected>2022</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+          </select>
+        </label>
+
+        <label>
+          <span>End year</span>
+          <select id="endYear">
+            <option value="2022">2022</option>
+            <option value="2023">2023</option>
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+            <option value="2026" selected>2026</option>
+          </select>
+        </label>
       </div>
-      <div class="notes-row"><div id="loadNotes" class="notes"></div><div id="loadErrors" class="errors"></div></div>
+
+      <div class="notes-row">
+        <div id="loadNotes" class="notes"></div>
+        <div id="loadErrors" class="errors"></div>
+      </div>
     </section>
 
     <section class="cards executive-cards" id="cards"></section>
 
     <section class="grid top-grid">
       <div class="panel">
-        <div class="panel-head"><h2>Annual permit trajectory</h2><div id="annualChartValue" class="muted">Click a bar to filter the map and neighborhood table</div></div>
-        <div class="chart-legend"><span class="legend-item"><span class="swatch swatch-sfr"></span>New SFR</span><span class="legend-item"><span class="swatch swatch-mf"></span>New MF</span><span class="legend-item"><span class="swatch swatch-demo"></span>Demo</span></div>
+        <div class="panel-head">
+          <h2>Annual permit trajectory</h2>
+          <div id="annualChartValue" class="muted">Click a bar to filter the map and neighborhood table</div>
+        </div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="swatch swatch-sfr"></span>New SFR / ADU</span>
+          <span class="legend-item"><span class="swatch swatch-townhome"></span>Townhome / Rowhouse / Duplex</span>
+          <span class="legend-item"><span class="swatch swatch-mf"></span>Multifamily / Apartment</span>
+          <span class="legend-item"><span class="swatch swatch-demo"></span>Demo</span>
+        </div>
         <canvas id="annualChart" height="260"></canvas>
       </div>
-      <div class="panel"><div class="panel-head"><h2>Selection map</h2><div id="mapContext" class="muted">All filtered points</div></div><div id="permitMap" class="small-map"></div></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Selection map</h2>
+          <div id="mapContext" class="muted">All filtered points</div>
+        </div>
+        <div id="permitMap" class="small-map"></div>
+      </div>
     </section>
 
     <section class="grid bottom-grid">
-      <div class="panel"><div class="panel-head"><h2>Market rollup</h2><div class="muted">Click a market to drill into its neighborhoods</div></div><div class="table-wrap tall"><table id="marketTable"><thead><tr><th>Market</th><th>Permits</th><th>Known Units</th><th>Est. Units</th><th>Trajectory</th><th>Read</th></tr></thead><tbody></tbody></table></div></div>
-      <div class="panel"><div class="panel-head"><h2>Neighborhood drilldown</h2><div class="muted">Individual neighborhoods inside the selected rollup</div></div><div class="table-wrap tall"><table id="neighborhoodTable"><thead><tr><th>Neighborhood</th><th>Market</th><th>2022</th><th>2023</th><th>2024</th><th>2025</th><th>2026</th><th>Total</th><th>Known Units</th><th>Est. Units</th><th>Trajectory</th><th>Read</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Market rollup</h2>
+          <div class="muted">Click a market to drill into its neighborhoods</div>
+        </div>
+        <div class="table-wrap tall">
+          <table id="marketTable">
+            <thead>
+              <tr>
+                <th>Market</th>
+                <th>Permits</th>
+                <th>SFR / ADU</th>
+                <th>Townhome</th>
+                <th>MF / Apt</th>
+                <th>Known Units</th>
+                <th>Trajectory</th>
+                <th>Read</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Neighborhood drilldown</h2>
+          <div class="muted">Individual neighborhoods inside the selected rollup</div>
+        </div>
+        <div class="table-wrap tall">
+          <table id="neighborhoodTable">
+            <thead>
+              <tr>
+                <th>Neighborhood</th>
+                <th>Market</th>
+                <th>2022</th>
+                <th>2023</th>
+                <th>2024</th>
+                <th>2025</th>
+                <th>2026</th>
+                <th>Total</th>
+                <th>SFR / ADU</th>
+                <th>Townhome</th>
+                <th>MF / Apt</th>
+                <th>Units</th>
+                <th>Trajectory</th>
+                <th>Read</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </section>
   </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/static/app.js"></script>
 </body>
