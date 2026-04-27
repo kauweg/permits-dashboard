@@ -24,38 +24,60 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({
   "'": "&#39;",
 }[m]));
 
+function showFatal(message) {
+  console.error(message);
+  const notes = byId("loadErrors");
+  if (notes) {
+    notes.innerHTML = `<div style="font-weight:700;">Dashboard load error:</div><div>${esc(message)}</div>`;
+  }
+}
+
 function qs(o) {
   return new URLSearchParams(o).toString();
 }
 
 async function fetchJson(url) {
   const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  return r.json();
+  const text = await r.text();
+  if (!r.ok) {
+    throw new Error(`${url} failed: ${r.status} ${r.statusText}. ${text.slice(0, 300)}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error(`${url} did not return JSON. First 300 chars: ${text.slice(0, 300)}`);
+  }
 }
 
 function filters() {
   return {
-    jurisdiction: byId("jurisdiction").value,
-    category: byId("category").value,
-    market: byId("market").value,
-    neighborhood: byId("neighborhood").value,
-    start_year: byId("startYear").value,
-    end_year: byId("endYear").value,
+    jurisdiction: byId("jurisdiction")?.value || "all",
+    category: byId("category")?.value || "all",
+    market: byId("market")?.value || "all",
+    neighborhood: byId("neighborhood")?.value || "all",
+    start_year: byId("startYear")?.value || "2022",
+    end_year: byId("endYear")?.value || "2026",
   };
 }
 
 function loadMsgs(notes, errors) {
-  byId("loadNotes").innerHTML = (notes || [])
-    .map((n) => `<span class="note-pill">${esc(n)}</span>`)
-    .join("");
-  byId("loadErrors").innerHTML = (errors || [])
-    .map((e) => `<div>${esc(e)}</div>`)
-    .join("");
+  const notesEl = byId("loadNotes");
+  const errorsEl = byId("loadErrors");
+  if (notesEl) {
+    notesEl.innerHTML = (notes || [])
+      .map((n) => `<span class="note-pill">${esc(n)}</span>`)
+      .join("");
+  }
+  if (errorsEl) {
+    errorsEl.innerHTML = (errors || [])
+      .map((e) => `<div>${esc(e)}</div>`)
+      .join("");
+  }
 }
 
 function populate(id, items, label) {
   const s = byId(id);
+  if (!s) return;
   const cur = s.value || "all";
   s.innerHTML = `<option value="all">${label}</option>`;
   (items || []).forEach((x) => {
@@ -78,6 +100,7 @@ async function loadMeta() {
 async function loadSummary() {
   state.summary = await fetchJson(`/api/summary?${qs(filters())}`);
   loadMsgs(state.summary.load_notes || [], state.summary.load_errors || []);
+
   renderCards();
   renderChart();
   renderMarkets();
@@ -138,7 +161,9 @@ function renderCards() {
     ["Demo", pts.filter((p) => p.category === "Demo").length || c.demo || 0],
   ];
 
-  byId("cards").innerHTML = items.map(([l, v]) => `
+  const cards = byId("cards");
+  if (!cards) return;
+  cards.innerHTML = items.map(([l, v]) => `
     <article class="card executive-card">
       <div class="card-label">${esc(l)}</div>
       <div class="card-value">${fmt(v)}</div>
@@ -147,11 +172,13 @@ function renderCards() {
 }
 
 function drawBars(canvas, labels, series, click) {
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
-  const w = Math.max(300, Math.floor(rect.width));
+  const w = Math.max(300, Math.floor(rect.width || 800));
   const h = 260;
   const ratio = window.devicePixelRatio || 1;
+
   canvas.width = w * ratio;
   canvas.height = h * ratio;
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -234,7 +261,8 @@ function badgeClass(v) {
 }
 
 function renderMarkets() {
-  const tbody = byId("marketTable").querySelector("tbody");
+  const tbody = byId("marketTable")?.querySelector("tbody");
+  if (!tbody) return;
   const rows = state.summary?.market_rows || [];
   tbody.innerHTML = rows.map((r) => `
     <tr data-market="${esc(r.name)}">
@@ -261,7 +289,8 @@ function renderMarkets() {
 }
 
 function renderNeighborhoods() {
-  const tbody = byId("neighborhoodTable").querySelector("tbody");
+  const tbody = byId("neighborhoodTable")?.querySelector("tbody");
+  if (!tbody) return;
   const rows = neighborhoodRows();
 
   tbody.innerHTML = rows.map((r) => `
@@ -299,6 +328,9 @@ function renderNeighborhoods() {
 
 function initMap() {
   if (state.map) return;
+  if (typeof L === "undefined") {
+    throw new Error("Leaflet did not load. Check internet/CDN access or the Leaflet script tag.");
+  }
   state.map = L.map("permitMap", { preferCanvas: true }).setView([47.6062, -122.3321], 11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -405,16 +437,18 @@ async function onFilter() {
 
 function wire() {
   ["jurisdiction", "category", "market", "neighborhood", "startYear", "endYear"]
-    .forEach((id) => byId(id).addEventListener("change", onFilter));
+    .forEach((id) => {
+      const el = byId(id);
+      if (el) el.addEventListener("change", onFilter);
+    });
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-  wire();
   try {
+    wire();
     await loadMeta();
     await loadSummary();
   } catch (e) {
-    loadMsgs([], [e.message || String(e)]);
-    console.error(e);
+    showFatal(e.message || String(e));
   }
 });
