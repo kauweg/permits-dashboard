@@ -1,4 +1,3 @@
-\
 const state = {
   meta: null,
   summary: null,
@@ -39,9 +38,11 @@ function qs(o) {
 async function fetchJson(url) {
   const r = await fetch(url, { cache: "no-store" });
   const text = await r.text();
+
   if (!r.ok) {
     throw new Error(`${url} failed: ${r.status} ${r.statusText}. ${text.slice(0, 300)}`);
   }
+
   try {
     return JSON.parse(text);
   } catch (e) {
@@ -63,11 +64,13 @@ function filters() {
 function loadMsgs(notes, errors) {
   const notesEl = byId("loadNotes");
   const errorsEl = byId("loadErrors");
+
   if (notesEl) {
     notesEl.innerHTML = (notes || [])
       .map((n) => `<span class="note-pill">${esc(n)}</span>`)
       .join("");
   }
+
   if (errorsEl) {
     errorsEl.innerHTML = (errors || [])
       .map((e) => `<div>${esc(e)}</div>`)
@@ -78,27 +81,35 @@ function loadMsgs(notes, errors) {
 function populate(id, items, label) {
   const s = byId(id);
   if (!s) return;
+
   const cur = s.value || "all";
   s.innerHTML = `<option value="all">${label}</option>`;
+
   (items || []).forEach((x) => {
     const o = document.createElement("option");
     o.value = x;
     o.textContent = x;
     s.appendChild(o);
   });
-  if ([...s.options].some((o) => o.value === cur)) s.value = cur;
+
+  if ([...s.options].some((o) => o.value === cur)) {
+    s.value = cur;
+  }
 }
 
 async function loadMeta() {
   state.meta = await fetchJson("/api/meta");
+
   populate("category", state.meta.categories || CATEGORIES, "All");
   populate("market", state.meta.markets || [], "All markets");
   populate("neighborhood", state.meta.neighborhoods || [], "All neighborhoods");
+
   loadMsgs(state.meta.load_notes || [], state.meta.load_errors || []);
 }
 
 async function loadSummary() {
   state.summary = await fetchJson(`/api/summary?${qs(filters())}`);
+
   loadMsgs(state.summary.load_notes || [], state.summary.load_errors || []);
 
   renderCards();
@@ -119,34 +130,44 @@ function validPnwPoint(lat, lng) {
 
 function mapPoints() {
   let rows = state.summary?.map_points || [];
+
   if (state.selectedSlice?.year) {
     rows = rows.filter((r) => Number(r.year) === Number(state.selectedSlice.year));
   }
+
   if (state.selectedSlice?.category) {
     rows = rows.filter((r) => r.category === state.selectedSlice.category);
   }
+
   return rows;
 }
 
 function neighborhoodRows() {
   let rows = state.summary?.neighborhood_rows || [];
+
   if (state.selectedSlice?.year) {
     const y = String(state.selectedSlice.year);
     rows = rows.filter((r) => Number(r.years?.[y]?.Total || 0) > 0);
   }
+
   if (state.selectedSlice?.category) {
     const y = state.selectedSlice?.year ? String(state.selectedSlice.year) : null;
+
     rows = rows.filter((r) => {
-      if (y) return Number(r.years?.[y]?.[state.selectedSlice.category] || 0) > 0;
+      if (y) {
+        return Number(r.years?.[y]?.[state.selectedSlice.category] || 0) > 0;
+      }
       return Number(r.totals?.[state.selectedSlice.category] || 0) > 0;
     });
   }
+
   return rows;
 }
 
 function renderCards() {
   const pts = mapPoints();
   const c = state.summary?.cards || {};
+
   const knownUnits = pts.reduce((a, p) => a + Number(p.units || 0), 0);
   const estUnits = pts.reduce((a, p) => a + Number(p.estimated_units || 0), 0);
 
@@ -163,16 +184,18 @@ function renderCards() {
 
   const cards = byId("cards");
   if (!cards) return;
-  cards.innerHTML = items.map(([l, v]) => `
+
+  cards.innerHTML = items.map(([label, value]) => `
     <article class="card executive-card">
-      <div class="card-label">${esc(l)}</div>
-      <div class="card-value">${fmt(v)}</div>
+      <div class="card-label">${esc(label)}</div>
+      <div class="card-value">${fmt(value)}</div>
     </article>
   `).join("");
 }
 
 function drawBars(canvas, labels, series, click) {
   if (!canvas) return;
+
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
   const w = Math.max(300, Math.floor(rect.width || 800));
@@ -187,6 +210,7 @@ function drawBars(canvas, labels, series, click) {
   const m = { l: 48, r: 20, t: 18, b: 42 };
   const pw = w - m.l - m.r;
   const ph = h - m.t - m.b;
+
   const colors = ["#0f766e", "#64748b", "#2563eb", "#a16207"];
   const max = Math.max(1, ...series.flatMap((s) => s.values));
 
@@ -209,15 +233,27 @@ function drawBars(canvas, labels, series, click) {
 
   labels.forEach((label, li) => {
     const gx = m.l + li * gw + 6;
+
     series.forEach((s, si) => {
       const val = Number(s.values[li] || 0);
       const bh = (val / max) * ph;
       const x = gx + si * bw;
       const y = m.t + ph - bh;
+
       ctx.fillStyle = colors[si % colors.length];
       ctx.fillRect(x, y, bw - 2, bh);
-      hits.push({ x, y, w: bw - 2, h: bh, label, series: s.name, value: val });
+
+      hits.push({
+        x,
+        y,
+        w: bw - 2,
+        h: bh,
+        label,
+        series: s.name,
+        value: val,
+      });
     });
+
     ctx.fillStyle = "#334155";
     ctx.fillText(String(label), gx, h - 10);
   });
@@ -226,25 +262,50 @@ function drawBars(canvas, labels, series, click) {
     const r = canvas.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
-    const hit = hits.find((h) => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+
+    const hit = hits.find((h) => (
+      x >= h.x &&
+      x <= h.x + h.w &&
+      y >= h.y &&
+      y <= h.y + h.h
+    ));
+
     if (hit) click(hit);
   };
 }
 
 function renderChart() {
   const rows = state.summary?.annual_series || [];
+
   drawBars(
     byId("annualChart"),
     rows.map((r) => r.year),
     [
-      { name: "New SFR / ADU", values: rows.map((r) => r["New SFR / ADU"] || 0) },
-      { name: "Townhome / Rowhouse / Duplex", values: rows.map((r) => r["Townhome / Rowhouse / Duplex"] || 0) },
-      { name: "Multifamily / Apartment", values: rows.map((r) => r["Multifamily / Apartment"] || 0) },
-      { name: "Demo", values: rows.map((r) => r.Demo || 0) },
+      {
+        name: "New SFR / ADU",
+        values: rows.map((r) => r["New SFR / ADU"] || 0),
+      },
+      {
+        name: "Townhome / Rowhouse / Duplex",
+        values: rows.map((r) => r["Townhome / Rowhouse / Duplex"] || 0),
+      },
+      {
+        name: "Multifamily / Apartment",
+        values: rows.map((r) => r["Multifamily / Apartment"] || 0),
+      },
+      {
+        name: "Demo",
+        values: rows.map((r) => r.Demo || 0),
+      },
     ],
     (hit) => {
-      state.selectedSlice = { year: Number(hit.label), category: hit.series };
+      state.selectedSlice = {
+        year: Number(hit.label),
+        category: hit.series,
+      };
+
       byId("annualChartValue").textContent = `${hit.label} • ${hit.series}: ${fmt(hit.value)}`;
+
       renderCards();
       renderNeighborhoods();
       renderMap();
@@ -252,18 +313,22 @@ function renderChart() {
   );
 }
 
-function badgeClass(v) {
-  v = String(v || "").toLowerCase();
+function badgeClass(value) {
+  const v = String(value || "").toLowerCase();
+
   if (v.includes("saturated") || v.includes("caution")) return "badge caution";
   if (v.includes("underserved") || v.includes("opportunity")) return "badge opportunity";
   if (v.includes("accelerating") || v.includes("heating")) return "badge active";
+
   return "badge";
 }
 
 function renderMarkets() {
   const tbody = byId("marketTable")?.querySelector("tbody");
   if (!tbody) return;
+
   const rows = state.summary?.market_rows || [];
+
   tbody.innerHTML = rows.map((r) => `
     <tr data-market="${esc(r.name)}">
       <td>${esc(r.name)}</td>
@@ -291,6 +356,7 @@ function renderMarkets() {
 function renderNeighborhoods() {
   const tbody = byId("neighborhoodTable")?.querySelector("tbody");
   if (!tbody) return;
+
   const rows = neighborhoodRows();
 
   tbody.innerHTML = rows.map((r) => `
@@ -328,19 +394,23 @@ function renderNeighborhoods() {
 
 function initMap() {
   if (state.map) return;
+
   if (typeof L === "undefined") {
     throw new Error("Leaflet did not load. Check internet/CDN access or the Leaflet script tag.");
   }
+
   state.map = L.map("permitMap", { preferCanvas: true }).setView([47.6062, -122.3321], 11);
+
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap",
   }).addTo(state.map);
+
   state.mapLayer = L.layerGroup().addTo(state.map);
 }
 
-function fallbackCenter(m) {
-  const c = {
+function fallbackCenter(market) {
+  const centers = {
     "Downtown Seattle": [47.608, -122.335],
     "First Hill / Capitol Hill": [47.62, -122.32],
     "South Lake Union / Eastlake": [47.631, -122.334],
@@ -356,24 +426,32 @@ function fallbackCenter(m) {
     "Greater Duwamish": [47.56, -122.335],
     "Unknown": [47.6062, -122.3321],
   };
-  return c[m] || [47.6062, -122.3321];
+
+  return centers[market] || [47.6062, -122.3321];
 }
 
-function markerColor(c) {
-  if (c === "Demo") return "#a16207";
-  if (c === "Multifamily / Apartment") return "#2563eb";
-  if (c === "Townhome / Rowhouse / Duplex") return "#64748b";
+function markerColor(category) {
+  if (category === "Demo") return "#a16207";
+  if (category === "Multifamily / Apartment") return "#2563eb";
+  if (category === "Townhome / Rowhouse / Duplex") return "#64748b";
   return "#0f766e";
 }
 
-function radius(u, e) {
-  u = Number(u || 0) || Number(e || 0);
-  return u >= 100 ? 10 : u >= 50 ? 8 : u >= 20 ? 6 : u >= 5 ? 5 : 4;
+function radius(units, estimatedUnits) {
+  const u = Number(units || 0) || Number(estimatedUnits || 0);
+
+  if (u >= 100) return 10;
+  if (u >= 50) return 8;
+  if (u >= 20) return 6;
+  if (u >= 5) return 5;
+
+  return 4;
 }
 
 function renderMap() {
   initMap();
   state.mapLayer.clearLayers();
+
   const rows = mapPoints();
 
   if (!rows.length) {
@@ -390,6 +468,7 @@ function renderMap() {
 
     if (!validPnwPoint(lat, lng)) {
       blocked += 1;
+
       const c = fallbackCenter(r.market || "Unknown");
       lat = c[0] + ((idx % 11) - 5) * 0.0012;
       lng = c[1] + ((Math.floor(idx / 11) % 11) - 5) * 0.0012;
@@ -397,7 +476,7 @@ function renderMap() {
 
     if (!validPnwPoint(lat, lng)) return;
 
-    const m = L.circleMarker([lat, lng], {
+    const marker = L.circleMarker([lat, lng], {
       radius: radius(r.units, r.estimated_units),
       color: markerColor(r.category),
       weight: 1,
@@ -405,7 +484,7 @@ function renderMap() {
       fillOpacity: 0.72,
     });
 
-    m.bindPopup(`
+    marker.bindPopup(`
       <div class="popup-card">
         <div class="popup-title">${esc(r.address || "Address unavailable")}</div>
         <div><strong>Market:</strong> ${esc(r.market || "Unknown")}</div>
@@ -417,7 +496,7 @@ function renderMap() {
       </div>
     `);
 
-    m.addTo(state.mapLayer);
+    marker.addTo(state.mapLayer);
     bounds.push([lat, lng]);
   });
 
@@ -427,7 +506,8 @@ function renderMap() {
     state.map.fitBounds(bounds, { padding: [18, 18] });
   }
 
-  byId("mapContext").textContent = `${fmt(bounds.length)} points shown on map${blocked ? ` • ${fmt(blocked)} bad coordinates blocked` : ""}`;
+  byId("mapContext").textContent =
+    `${fmt(bounds.length)} points shown on map${blocked ? ` • ${fmt(blocked)} bad coordinates blocked` : ""}`;
 }
 
 async function onFilter() {
@@ -439,7 +519,9 @@ function wire() {
   ["jurisdiction", "category", "market", "neighborhood", "startYear", "endYear"]
     .forEach((id) => {
       const el = byId(id);
-      if (el) el.addEventListener("change", onFilter);
+      if (el) {
+        el.addEventListener("change", onFilter);
+      }
     });
 }
 
