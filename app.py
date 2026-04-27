@@ -7,6 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 SUMMARY_PATH = DATA_DIR / "summary.json"
 META_PATH = DATA_DIR / "meta.json"
+
 YEARS = [2022, 2023, 2024, 2025, 2026]
 VALID_CATEGORIES = [
     "New SFR / ADU",
@@ -17,70 +18,6 @@ VALID_CATEGORIES = [
 
 app = Flask(__name__)
 
-def load_json(path, default):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return default
-
-def to_int(v):
-    try:
-        return int(v or 0)
-    except Exception:
-        return 0
-
-def point_year(row):
-    if row.get("year"):
-        return to_int(row.get("year"))
-    for k in ("issue_date", "intake_date"):
-        s = str(row.get(k, "") or "")
-        if len(s) >= 4 and s[:4].isdigit():
-            return int(s[:4])
-    return 0
-
-def classify_trajectory(vals):
-    vals = [to_int(v) for v in vals]
-    if not vals or sum(vals) == 0:
-        return "No data"
-    first_two = sum(vals[:2]) / max(1, len(vals[:2]))
-    last_two = sum(vals[-2:]) / max(1, len(vals[-2:]))
-    avg = sum(vals) / len(vals)
-    if last_two >= max(6, first_two * 1.75):
-        return "Accelerating"
-    if last_two >= max(4, avg * 1.25):
-        return "Active"
-    if avg >= 3 and last_two <= avg * 0.55:
-        return "Cooling"
-    if avg <= 2 and last_two <= 2:
-        return "Underserved"
-    return "Stable"
-
-def opportunity_label(row):
-    recent = row["recent_permits"]
-    avg = row["avg_permits"]
-    mf = row["multifamily_apartment"]
-    attached = row["townhome_rowhouse_duplex"]
-    units = row["known_units"] + row["estimated_units"]
-    if recent >= 25 or (mf >= 10 and recent >= 10) or (attached >= 25 and recent >= 15):
-        return "Saturated / caution"
-    if recent >= max(6, avg * 1.4):
-        return "Heating up"
-    if avg <= 3 and recent <= 3:
-        return "Underserved"
-    if units > 0 and recent <= 8:
-        return "Selective opportunity"
-    return "Monitor"
-
-def default_summary():
-    return {
-        "cards": {},
-        "annual_series": [{"year": y, **empty_year()} for y in YEARS],
-        "market_rows": [],
-        "neighborhood_rows": [],
-        "map_points": [],
-        "load_notes": ["No precomputed data found."],
-        "load_errors": [],
-    }
 
 def empty_year():
     return {
@@ -93,11 +30,116 @@ def empty_year():
         "Estimated Units": 0,
     }
 
+
+def load_json(path, default):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default
+
+
+def to_int(v):
+    try:
+        return int(v or 0)
+    except Exception:
+        return 0
+
+
+def point_year(row):
+    if row.get("year"):
+        return to_int(row.get("year"))
+    for key in ("issue_date", "intake_date"):
+        value = str(row.get(key, "") or "")
+        if len(value) >= 4 and value[:4].isdigit():
+            return int(value[:4])
+    return 0
+
+
+def default_summary():
+    return {
+        "cards": {},
+        "annual_series": [{"year": y, **empty_year()} for y in YEARS],
+        "market_rows": [],
+        "neighborhood_rows": [],
+        "map_points": [],
+        "load_notes": ["No precomputed data found."],
+        "load_errors": [],
+    }
+
+
 def load_meta():
-    return load_json(META_PATH, {"markets": [], "neighborhoods": [], "categories": VALID_CATEGORIES, "load_notes": [], "load_errors": []})
+    return load_json(
+        META_PATH,
+        {
+            "markets": [],
+            "neighborhoods": [],
+            "categories": VALID_CATEGORIES,
+            "load_notes": [],
+            "load_errors": [],
+        },
+    )
+
 
 def load_summary():
     return load_json(SUMMARY_PATH, default_summary())
+
+
+def classify_trajectory(vals):
+    vals = [to_int(v) for v in vals]
+    if not vals or sum(vals) == 0:
+        return "No data"
+    first_two = sum(vals[:2]) / max(1, len(vals[:2]))
+    last_two = sum(vals[-2:]) / max(1, len(vals[-2:]))
+    avg = sum(vals) / len(vals)
+
+    if last_two >= max(6, first_two * 1.75):
+        return "Accelerating"
+    if last_two >= max(4, avg * 1.25):
+        return "Active"
+    if avg >= 3 and last_two <= avg * 0.55:
+        return "Cooling"
+    if avg <= 2 and last_two <= 2:
+        return "Underserved"
+    return "Stable"
+
+
+def opportunity_label(row):
+    recent = row["recent_permits"]
+    avg = row["avg_permits"]
+    mf = row["multifamily_apartment"]
+    attached = row["townhome_rowhouse_duplex"]
+    units = row["known_units"] + row["estimated_units"]
+
+    saturation_signals = 0
+    if recent >= 25:
+        saturation_signals += 1
+    if avg > 0 and recent >= avg * 1.4:
+        saturation_signals += 1
+    if units >= 75:
+        saturation_signals += 1
+    if recent > 0 and ((mf + attached) / recent) >= 0.65:
+        saturation_signals += 1
+
+    opportunity_signals = 0
+    if recent <= 6:
+        opportunity_signals += 1
+    if units <= 15:
+        opportunity_signals += 1
+    if row["trajectory"] in {"Stable", "Cooling", "Underserved"}:
+        opportunity_signals += 1
+    if recent == 0 or ((mf + attached) / max(1, recent)) < 0.50:
+        opportunity_signals += 1
+
+    if saturation_signals >= 2:
+        return "Saturated / caution"
+    if saturation_signals == 1 and row["trajectory"] == "Accelerating":
+        return "Heating up"
+    if opportunity_signals >= 2:
+        return "Underserved"
+    if units > 0 and recent <= 8:
+        return "Selective opportunity"
+    return "Monitor"
+
 
 def keep_point(row, jurisdiction, category, market, neighborhood, start_year, end_year):
     if jurisdiction != "all" and row.get("jurisdiction") != jurisdiction:
@@ -110,6 +152,29 @@ def keep_point(row, jurisdiction, category, market, neighborhood, start_year, en
         return False
     y = point_year(row)
     return start_year <= y <= end_year
+
+
+def slim_point(p):
+    """
+    Important: do NOT send large text fields like summary to the browser.
+    The dashboard needs point metadata, not the full permit description.
+    """
+    return {
+        "address": p.get("address"),
+        "jurisdiction": p.get("jurisdiction"),
+        "market": p.get("market"),
+        "neighborhood": p.get("neighborhood"),
+        "raw_neighborhood": p.get("raw_neighborhood"),
+        "category": p.get("category"),
+        "units": p.get("units", 0),
+        "estimated_units": p.get("estimated_units", 0),
+        "issue_date": p.get("issue_date"),
+        "intake_date": p.get("intake_date"),
+        "year": p.get("year"),
+        "latitude": p.get("latitude"),
+        "longitude": p.get("longitude"),
+    }
+
 
 def summarize(points):
     cards = {
@@ -155,12 +220,14 @@ def summarize(points):
             g["jurisdictions"].add(p.get("jurisdiction", ""))
             y = str(point_year(p))
             c = p.get("category")
+
             if y in g["years"]:
                 if c in VALID_CATEGORIES:
                     g["years"][y][c] += 1
                 g["years"][y]["Total"] += 1
                 g["years"][y]["Known Units"] += to_int(p.get("units"))
                 g["years"][y]["Estimated Units"] += to_int(p.get("estimated_units"))
+
             if c in VALID_CATEGORIES:
                 g["totals"][c] += 1
             g["totals"]["Total"] += 1
@@ -172,10 +239,12 @@ def summarize(points):
             vals = [g["years"][str(y)]["Total"] for y in YEARS]
             recent = g["years"]["2025"]["Total"] + g["years"]["2026"]["Total"]
             avg = round(sum(vals) / len(vals), 1) if vals else 0
+            trajectory = classify_trajectory(vals)
+
             row = {
                 **g,
                 "jurisdictions": sorted([j for j in g["jurisdictions"] if j]),
-                "trajectory": classify_trajectory(vals),
+                "trajectory": trajectory,
                 "recent_permits": recent,
                 "avg_permits": avg,
                 "new_sfr_adu": g["totals"]["New SFR / ADU"],
@@ -186,27 +255,37 @@ def summarize(points):
             }
             row["opportunity"] = opportunity_label(row)
             out.append(row)
+
         return sorted(out, key=lambda r: (-r["totals"]["Total"], r["name"]))
 
     return cards, [annual[y] for y in YEARS], rollup("market"), rollup("raw_neighborhood")
 
+
 def filter_summary(summary, jurisdiction, category, market, neighborhood, start_year, end_year):
-    points = [p for p in summary.get("map_points", []) if keep_point(p, jurisdiction, category, market, neighborhood, start_year, end_year)]
+    points = [
+        p
+        for p in summary.get("map_points", [])
+        if keep_point(p, jurisdiction, category, market, neighborhood, start_year, end_year)
+    ]
+
     cards, annual, market_rows, neighborhood_rows = summarize(points)
+
     return {
         "cards": cards,
         "annual_series": annual,
         "market_rows": market_rows,
         "neighborhood_rows": neighborhood_rows,
-        "map_points": points,
+        "map_points": [slim_point(p) for p in points],
         "categories": summary.get("categories", VALID_CATEGORIES),
         "load_notes": summary.get("load_notes", []),
         "load_errors": summary.get("load_errors", []),
     }
 
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/api/meta")
 def api_meta():
@@ -214,20 +293,24 @@ def api_meta():
     meta["categories"] = meta.get("categories", VALID_CATEGORIES)
     return jsonify(meta)
 
+
 @app.route("/api/summary")
 def api_summary():
-    s = load_summary()
+    summary = load_summary()
     jurisdiction = request.args.get("jurisdiction", "all")
     category = request.args.get("category", "all")
     market = request.args.get("market", "all")
     neighborhood = request.args.get("neighborhood", "all")
     start_year = int(request.args.get("start_year", YEARS[0]))
     end_year = int(request.args.get("end_year", YEARS[-1]))
+
     if category not in {"all", *VALID_CATEGORIES}:
         category = "all"
     if jurisdiction not in {"all", "Seattle", "Bellevue"}:
         jurisdiction = "all"
-    return jsonify(filter_summary(s, jurisdiction, category, market, neighborhood, start_year, end_year))
+
+    return jsonify(filter_summary(summary, jurisdiction, category, market, neighborhood, start_year, end_year))
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

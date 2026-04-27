@@ -17,11 +17,7 @@ DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 YEARS = {2022, 2023, 2024, 2025, 2026}
-
 SEATTLE_CSV_URL = "https://data.seattle.gov/api/views/76t5-zqzr/rows.csv?accessType=DOWNLOAD"
-
-# Bellevue intentionally disabled while Seattle classification is being corrected.
-BELLEVUE_CSV_URL = ""
 
 MIN_LAT, MAX_LAT = 47.00, 48.00
 MIN_LON, MAX_LON = -123.00, -121.00
@@ -76,42 +72,42 @@ NEIGHBORHOOD_BOUNDS = [
     ("Rainier Beach", "South Seattle", 47.49, 47.54, -122.29, -122.24),
 ]
 
-DEMO_HINTS = [
-    " demol", " demolition", " demo ", "teardown", " raze ",
-    "remove structure", "remove building", "deconstruct"
-]
+DEMO_HINTS = [" demol", " demolition", " demo ", "teardown", " raze ", "remove structure", "remove building", "deconstruct"]
 
 EXCLUDE_NON_SUPPLY = [
-    "alteration", "alterations", "repair", "repairs", "replace", "replacement",
-    "roof", "reroof", "re-roof", "tenant improvement", "seismic", "retrofit",
-    "interior", "remodel", "mechanical", "plumbing", "electrical", "solar",
-    "deck", "retaining wall", "shoring", "excavation", "site work",
-    "change of use", "install", "installation"
+    "repair", "repairs", "replace", "replacement", "roof", "reroof", "re-roof",
+    "tenant improvement", "seismic", "retrofit", "interior", "remodel",
+    "mechanical", "plumbing", "electrical", "solar", "deck", "retaining wall",
+    "shoring", "excavation", "site work", "change of use", "install", "installation",
+    "shed", "garage", "minor communication utility", "antenna", "equipment",
 ]
 
 TOWNHOME_HINTS = [
     "townhome", "townhomes", "townhouse", "townhouses",
     "rowhouse", "rowhouses", "duplex", "triplex", "fourplex",
-    "two-family", "2-family", "cottage housing"
+    "two-family", "2-family", "two family", "cottage housing"
 ]
 
 MULTIFAMILY_HINTS = [
     "multifamily", "multi-family", "multi family", "apartment", "apartments",
-    "condo", "condominium", "mixed use", "mixed-use"
+    "condo", "condominium", "mixed use", "mixed-use", "sedu", "sedus",
 ]
 
 SFR_HINTS = [
     "single family", "single-family", "single family residence",
     "single-family residence", "one-family", "one family",
-    "one-family dwelling", "sfr", "detached", "adu", "aadu", "dadu",
-    "accessory dwelling"
+    "one-family dwelling", "sfr", "detached", "single-family dwelling",
+    "single family dwelling"
 ]
+
+ADU_HINTS = ["adu", "aadu", "dadu", "accessory dwelling"]
 
 STRONG_NEW_HINTS = [
     "construct new", "new construction", "new building", "new structure",
     "establish use", "new single", "new one-family", "new townhome",
     "new townhouse", "new rowhouse", "new apartment", "new multifamily",
-    "construct a new"
+    "construct a new", "construct one family", "construct one-family",
+    "construct single family", "construct single-family",
 ]
 
 
@@ -143,14 +139,7 @@ def parse_dt(v: Any) -> datetime | None:
     s = norm(v)
     if not s:
         return None
-    for fmt in (
-        "%Y-%m-%dT%H:%M:%S.%f",
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%d",
-        "%m/%d/%Y",
-        "%m/%d/%Y %H:%M:%S",
-        "%m/%d/%y",
-    ):
+    for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d", "%m/%d/%Y", "%m/%d/%Y %H:%M:%S", "%m/%d/%y"):
         try:
             return datetime.strptime(s[:26], fmt)
         except Exception:
@@ -204,12 +193,16 @@ def has(text: str, terms: list[str]) -> bool:
 
 
 def is_demo(text: str, units_added: int, units_removed: int) -> bool:
+    # A permit that says "demolish existing ... and construct new..." should be classified as the new supply, not demo.
+    low = f" {norm(text).lower()} "
+    if any(h in low for h in STRONG_NEW_HINTS) and units_added > 0:
+        return False
     return has(text, DEMO_HINTS) or (units_removed > 0 and units_added <= 0)
 
 
 def is_non_supply(text: str) -> bool:
     low = f" {norm(text).lower()} "
-    if any(h in low for h in STRONG_NEW_HINTS):
+    if any(h in low for h in STRONG_NEW_HINTS) or "create an attached accessory dwelling unit" in low or "detached accessory dwelling unit" in low:
         return False
     return any(h in low for h in EXCLUDE_NON_SUPPLY)
 
@@ -225,48 +218,65 @@ def classify(row: dict[str, Any], text: str) -> str | None:
     permit_type = norm(pick(row, ["PermitTypeDesc", "PermitTypeMapped"]))
 
     combined = " ".join([text, dwelling_type, housing_category, permit_class, permit_type]).lower()
+    low = f" {combined} "
 
     if is_demo(combined, units_added, units_removed):
         return "Demo"
 
-    # Exclude remodel/repair unless it explicitly adds units.
     if units_added <= 0 and is_non_supply(combined):
         return None
 
-    # Structured Seattle unit field is the primary signal.
+    # Primary correction: Single Family/Duplex permit class + one-family language should not become Townhome.
+    is_single_family_class = "single family/duplex" in low or "single family" in low
+    is_explicit_townhome = has(combined, ["townhome", "townhomes", "townhouse", "townhouses", "rowhouse", "rowhouses", "cottage housing"])
+    is_explicit_duplex_triplex = has(combined, ["duplex", "triplex", "fourplex", "two-family", "2-family", "two family"])
+    is_explicit_mf = has(combined, MULTIFAMILY_HINTS)
+    is_explicit_sfr = has(combined, SFR_HINTS)
+    is_adu = has(combined, ADU_HINTS)
+
+    # If it is an SFR class and says single/one-family, classify as SFR/ADU unless it clearly says townhome/rowhouse/duplex.
+    if is_single_family_class and is_explicit_sfr and not is_explicit_townhome and not is_explicit_duplex_triplex:
+        return "New SFR / ADU"
+
+    if is_adu and not is_explicit_townhome and not is_explicit_mf:
+        return "New SFR / ADU"
+
+    # Structured unit field.
     if units_added > 0:
-        if has(combined, MULTIFAMILY_HINTS):
+        if is_explicit_mf and not is_explicit_townhome:
             return "Multifamily / Apartment"
-        if has(combined, TOWNHOME_HINTS):
+        if is_explicit_townhome or is_explicit_duplex_triplex:
             return "Townhome / Rowhouse / Duplex"
         if units_added == 1:
             return "New SFR / ADU"
-        # Multiple units with no explicit apartment/mf language usually means townhomes/rowhouses/duplex-type small attached housing.
         if 2 <= units_added <= 8:
+            # Multi-lot SFR plats frequently show multiple added units but text says one-family.
+            if is_single_family_class and is_explicit_sfr:
+                return "New SFR / ADU"
             return "Townhome / Rowhouse / Duplex"
         return "Multifamily / Apartment"
 
-    # If only total units is present, use it as weaker signal.
     if units_total > 0 and any(h in combined for h in STRONG_NEW_HINTS):
-        if has(combined, MULTIFAMILY_HINTS):
+        if is_explicit_mf and not is_explicit_townhome:
             return "Multifamily / Apartment"
-        if has(combined, TOWNHOME_HINTS):
+        if is_explicit_townhome or is_explicit_duplex_triplex:
             return "Townhome / Rowhouse / Duplex"
-        if units_total == 1:
+        if units_total == 1 or (is_single_family_class and is_explicit_sfr):
             return "New SFR / ADU"
         if 2 <= units_total <= 8:
             return "Townhome / Rowhouse / Duplex"
         return "Multifamily / Apartment"
 
-    # Text fallback.
     if not any(h in combined for h in STRONG_NEW_HINTS):
         return None
-    if has(combined, MULTIFAMILY_HINTS):
+
+    if is_explicit_mf and not is_explicit_townhome:
         return "Multifamily / Apartment"
-    if has(combined, TOWNHOME_HINTS):
+    if is_explicit_townhome or is_explicit_duplex_triplex:
         return "Townhome / Rowhouse / Duplex"
-    if has(combined, SFR_HINTS):
+    if is_explicit_sfr or is_adu:
         return "New SFR / ADU"
+
     return None
 
 
@@ -274,7 +284,6 @@ def unit_counts(row: dict[str, Any], category: str) -> tuple[int, int, bool]:
     added = to_int(pick(row, ["HousingUnitsAdded"]))
     total = to_int(pick(row, ["HousingUnits"]))
     known = added or total
-    suspicious = False
 
     if category == "Demo":
         return 0, 0, False
@@ -289,6 +298,7 @@ def unit_counts(row: dict[str, Any], category: str) -> tuple[int, int, bool]:
         return 0, 1, False
     if category == "Townhome / Rowhouse / Duplex":
         return 0, 3, False
+
     return 0, 0, False
 
 
@@ -345,8 +355,8 @@ def build_row(row: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
 
 def fetch_rows(debug: dict[str, Any]) -> list[dict[str, Any]]:
     raw = download_csv_rows(SEATTLE_CSV_URL)
-    out: list[dict[str, Any]] = []
-    reasons: dict[str, int] = {}
+    out = []
+    reasons = {}
     columns = set()
 
     for row in raw:
@@ -367,43 +377,6 @@ def fetch_rows(debug: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def trajectory(vals: list[int]) -> str:
-    if not vals or sum(vals) == 0:
-        return "No data"
-    first_two = sum(vals[:2]) / max(1, len(vals[:2]))
-    last_two = sum(vals[-2:]) / max(1, len(vals[-2:]))
-    avg = sum(vals) / len(vals)
-
-    if last_two >= max(6, first_two * 1.75):
-        return "Accelerating"
-    if last_two >= max(4, avg * 1.25):
-        return "Active"
-    if avg >= 3 and last_two <= avg * 0.55:
-        return "Cooling"
-    if avg <= 2 and last_two <= 2:
-        return "Underserved"
-    return "Stable"
-
-
-def opportunity(row: dict[str, Any]) -> str:
-    recent = row["years"]["2025"]["Total"] + row["years"]["2026"]["Total"]
-    vals = [row["years"][str(y)]["Total"] for y in sorted(YEARS)]
-    avg = sum(vals) / len(vals) if vals else 0
-    mf = row["totals"]["Multifamily / Apartment"]
-    attached = row["totals"]["Townhome / Rowhouse / Duplex"]
-    unit_total = row["totals"]["Known Units"] + row["totals"]["Estimated Units"]
-
-    if recent >= 25 or (mf >= 10 and recent >= 10) or (attached >= 25 and recent >= 15):
-        return "Saturated / caution"
-    if recent >= max(6, avg * 1.4):
-        return "Heating up"
-    if avg <= 3 and recent <= 3:
-        return "Underserved"
-    if unit_total > 0 and recent <= 8:
-        return "Selective opportunity"
-    return "Monitor"
-
-
 def empty_year():
     return {
         "New SFR / ADU": 0,
@@ -416,9 +389,64 @@ def empty_year():
     }
 
 
-def rollup(rows: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
-    grouped: dict[str, Any] = {}
+def trajectory(vals):
+    if not vals or sum(vals) == 0:
+        return "No data"
+    first_two = sum(vals[:2]) / max(1, len(vals[:2]))
+    last_two = sum(vals[-2:]) / max(1, len(vals[-2:]))
+    avg = sum(vals) / len(vals)
+    if last_two >= max(6, first_two * 1.75):
+        return "Accelerating"
+    if last_two >= max(4, avg * 1.25):
+        return "Active"
+    if avg >= 3 and last_two <= avg * 0.55:
+        return "Cooling"
+    if avg <= 2 and last_two <= 2:
+        return "Underserved"
+    return "Stable"
 
+
+def opportunity(row):
+    recent = row["years"]["2025"]["Total"] + row["years"]["2026"]["Total"]
+    vals = [row["years"][str(y)]["Total"] for y in sorted(YEARS)]
+    avg = sum(vals) / len(vals) if vals else 0
+    mf = row["totals"]["Multifamily / Apartment"]
+    attached = row["totals"]["Townhome / Rowhouse / Duplex"]
+    units = row["totals"]["Known Units"] + row["totals"]["Estimated Units"]
+
+    saturation_signals = 0
+    if recent >= 25:
+        saturation_signals += 1
+    if avg > 0 and recent >= avg * 1.4:
+        saturation_signals += 1
+    if units >= 75:
+        saturation_signals += 1
+    if recent > 0 and ((mf + attached) / recent) >= 0.65:
+        saturation_signals += 1
+
+    opportunity_signals = 0
+    if recent <= 6:
+        opportunity_signals += 1
+    if units <= 15:
+        opportunity_signals += 1
+    if row.get("trajectory") in {"Stable", "Cooling", "Underserved"}:
+        opportunity_signals += 1
+    if recent == 0 or ((mf + attached) / max(1, recent)) < 0.50:
+        opportunity_signals += 1
+
+    if saturation_signals >= 2:
+        return "Saturated / caution"
+    if saturation_signals == 1 and row.get("trajectory") == "Accelerating":
+        return "Heating up"
+    if opportunity_signals >= 2:
+        return "Underserved"
+    if units > 0 and recent <= 8:
+        return "Selective opportunity"
+    return "Monitor"
+
+
+def rollup(rows, field):
+    grouped = {}
     for r in rows:
         key = r.get(field) or "Unknown"
         if key not in grouped:
@@ -457,7 +485,7 @@ def rollup(rows: list[dict[str, Any]], field: str) -> list[dict[str, Any]]:
     return sorted(out, key=lambda x: (-x["totals"]["Total"], x["name"]))
 
 
-def build_outputs(rows: list[dict[str, Any]], debug: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def build_outputs(rows, debug):
     cards = {
         "total_permits": len(rows),
         "seattle_permits": len(rows),
@@ -473,7 +501,6 @@ def build_outputs(rows: list[dict[str, Any]], debug: dict[str, Any]) -> tuple[di
     }
 
     annual = {y: {"year": y, **empty_year()} for y in sorted(YEARS)}
-
     for r in rows:
         y = r["year"]
         cat = r["category"]
@@ -515,9 +542,8 @@ def build_outputs(rows: list[dict[str, Any]], debug: dict[str, Any]) -> tuple[di
     return summary, meta
 
 
-def main() -> None:
-    debug: dict[str, Any] = {"errors": []}
-
+def main():
+    debug = {"errors": []}
     print("Fetching Seattle permits...")
     try:
         rows = fetch_rows(debug)
