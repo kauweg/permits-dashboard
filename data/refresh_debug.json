@@ -1,15 +1,15 @@
 {
   "errors": [],
   "seattle_rows_examined": 189600,
-  "seattle_rows_kept": 11443,
-  "seattle_rows_dropped": 178157,
+  "seattle_rows_kept": 11628,
+  "seattle_rows_dropped": 177972,
   "seattle_drop_reasons": {
-    "outside_years_or_missing_date": 46601,
-    "excluded_by_classifier": 131556,
-    "kept": 11443
+    "outside_years_or_missing_date": 48030,
+    "excluded_by_classifier": 129942,
+    "kept": 11628
   },
-  "seattle_unknown_market_rows": 134,
-  "seattle_bad_coordinate_rows_removed_or_swapped": 38,
+  "seattle_unknown_market_rows": 137,
+  "seattle_bad_coordinate_rows_removed_or_swapped": 41,
   "seattle_suspicious_unit_rows_removed": 1,
   "seattle_columns_seen": [
     "AppliedDate",

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-27T14:43:32.123532+00:00",
+  "generated_at": "2026-04-27T14:58:13.361839+00:00",
   "categories": [
     "New SFR / ADU",
     "Townhome / Rowhouse / Duplex",
@@ -59,13 +59,13 @@
     "West Seattle Junction"
   ],
   "load_notes": [
-    "Seattle-first refresh generated 11443 target permit rows.",
-    "Seattle kept 11443 rows out of 189600 examined.",
+    "Seattle-first refresh generated 11628 target permit rows.",
+    "Seattle kept 11628 rows out of 189600 examined.",
     "Bellevue is intentionally excluded from this run while Seattle classification is being corrected.",
     "Known markets after refresh: 13.",
     "Known neighborhoods after refresh: 33.",
-    "Known units: 50872; estimated units: 53828.",
-    "Bad coordinates removed/swapped: Seattle 38.",
+    "Known units: 51183; estimated units: 54047.",
+    "Bad coordinates removed/swapped: Seattle 41.",
     "Suspicious >500-unit rows removed from unit count: 1."
   ],
   "load_errors": []
