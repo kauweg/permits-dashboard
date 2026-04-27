@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-26T00:53:27.827252+00:00",
+  "generated_at": "2026-04-27T14:22:47.403894+00:00",
   "markets": [
     "Ballard",
     "Beacon Hill",
@@ -7,7 +7,6 @@
     "Downtown Seattle",
     "First Hill / Capitol Hill",
     "Fremont / Wallingford",
-    "Greater Duwamish",
     "North Seattle",
     "Queen Anne / Magnolia",
     "South Lake Union / Eastlake",
@@ -31,9 +30,7 @@
     "Eastlake",
     "Fauntleroy / Arbor Heights",
     "First Hill",
-    "First Hill / Capitol Hill",
     "Fremont",
-    "Greater Duwamish",
     "Greenwood / Northgate",
     "Madison / Leschi",
     "Magnolia",
@@ -54,12 +51,13 @@
     "West Seattle Junction"
   ],
   "load_notes": [
-    "Precomputed refresh generated 17366 target permit rows.",
-    "Seattle kept 17366 rows out of 189561 examined.",
+    "Precomputed refresh generated 6063 target permit rows.",
+    "Seattle kept 6063 rows out of 189600 examined.",
     "Bellevue kept 0 rows out of 380598 examined.",
-    "Known markets after refresh: 13.",
-    "Known neighborhoods after refresh: 34.",
-    "Known units: 10472; estimated units: 35061."
+    "Known markets after refresh: 12.",
+    "Known neighborhoods after refresh: 32.",
+    "Known units: 10476; estimated units: 16862.",
+    "Bad coordinates removed/swapped: Seattle 21, Bellevue 0."
   ],
   "load_errors": []
 }
