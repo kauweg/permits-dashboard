@@ -13,6 +13,8 @@ const CATEGORIES = [
   "Demo",
 ];
 
+const DEFAULT_YEARS = [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+
 const byId = (id) => document.getElementById(id);
 const fmt = (n) => new Intl.NumberFormat().format(Number(n || 0));
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({
@@ -25,9 +27,9 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (m) => ({
 
 function showFatal(message) {
   console.error(message);
-  const notes = byId("loadErrors");
-  if (notes) {
-    notes.innerHTML = `<div style="font-weight:700;">Dashboard load error:</div><div>${esc(message)}</div>`;
+  const errors = byId("loadErrors");
+  if (errors) {
+    errors.innerHTML = `<div style="font-weight:700;">Dashboard load error:</div><div>${esc(message)}</div>`;
   }
 }
 
@@ -50,13 +52,17 @@ async function fetchJson(url) {
   }
 }
 
+function years() {
+  return state.meta?.years || state.summary?.years || DEFAULT_YEARS;
+}
+
 function filters() {
   return {
     jurisdiction: byId("jurisdiction")?.value || "all",
     category: byId("category")?.value || "all",
     market: byId("market")?.value || "all",
     neighborhood: byId("neighborhood")?.value || "all",
-    start_year: byId("startYear")?.value || "2022",
+    start_year: byId("startYear")?.value || "2016",
     end_year: byId("endYear")?.value || "2026",
   };
 }
@@ -154,9 +160,7 @@ function neighborhoodRows() {
     const y = state.selectedSlice?.year ? String(state.selectedSlice.year) : null;
 
     rows = rows.filter((r) => {
-      if (y) {
-        return Number(r.years?.[y]?.[state.selectedSlice.category] || 0) > 0;
-      }
+      if (y) return Number(r.years?.[y]?.[state.selectedSlice.category] || 0) > 0;
       return Number(r.totals?.[state.selectedSlice.category] || 0) > 0;
     });
   }
@@ -354,20 +358,35 @@ function renderMarkets() {
 }
 
 function renderNeighborhoods() {
-  const tbody = byId("neighborhoodTable")?.querySelector("tbody");
-  if (!tbody) return;
+  const table = byId("neighborhoodTable");
+  const tbody = table?.querySelector("tbody");
+  const thead = byId("neighborhoodTableHead");
 
+  if (!tbody || !thead) return;
+
+  const ys = years();
   const rows = neighborhoodRows();
+
+  thead.innerHTML = `
+    <tr>
+      <th>Neighborhood</th>
+      <th>Market</th>
+      ${ys.map((y) => `<th>${y}</th>`).join("")}
+      <th>Total</th>
+      <th>SFR / ADU</th>
+      <th>Townhome</th>
+      <th>MF / Apt</th>
+      <th>Units</th>
+      <th>Trajectory</th>
+      <th>Read</th>
+    </tr>
+  `;
 
   tbody.innerHTML = rows.map((r) => `
     <tr data-neighborhood="${esc(r.name)}">
       <td>${esc(r.name)}</td>
       <td>${esc(r.market)}</td>
-      <td>${fmt(r.years?.["2022"]?.Total)}</td>
-      <td>${fmt(r.years?.["2023"]?.Total)}</td>
-      <td>${fmt(r.years?.["2024"]?.Total)}</td>
-      <td>${fmt(r.years?.["2025"]?.Total)}</td>
-      <td>${fmt(r.years?.["2026"]?.Total)}</td>
+      ${ys.map((y) => `<td>${fmt(r.years?.[String(y)]?.Total)}</td>`).join("")}
       <td>${fmt(r.totals?.Total)}</td>
       <td>${fmt(r.totals?.["New SFR / ADU"])}</td>
       <td>${fmt(r.totals?.["Townhome / Rowhouse / Duplex"])}</td>
@@ -379,7 +398,7 @@ function renderNeighborhoods() {
   `).join("");
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="14" class="muted">No neighborhoods in this selection.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${ys.length + 8}" class="muted">No neighborhoods in this selection.</td></tr>`;
   }
 
   tbody.querySelectorAll("tr[data-neighborhood]").forEach((tr) => {
@@ -519,9 +538,7 @@ function wire() {
   ["jurisdiction", "category", "market", "neighborhood", "startYear", "endYear"]
     .forEach((id) => {
       const el = byId(id);
-      if (el) {
-        el.addEventListener("change", onFilter);
-      }
+      if (el) el.addEventListener("change", onFilter);
     });
 }
 
