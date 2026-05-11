@@ -1,10 +1,23 @@
 {
-  "generated_at": "2026-04-27T14:58:13.361839+00:00",
+  "generated_at": "2026-05-11T14:06:50.098564+00:00",
   "categories": [
     "New SFR / ADU",
     "Townhome / Rowhouse / Duplex",
     "Multifamily / Apartment",
     "Demo"
+  ],
+  "years": [
+    2016,
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
   ],
   "markets": [
     "Ballard",
@@ -37,6 +50,7 @@
     "Eastlake",
     "Fauntleroy / Arbor Heights",
     "First Hill",
+    "First Hill / Capitol Hill",
     "Fremont",
     "Greater Duwamish",
     "Greenwood / Northgate",
@@ -59,14 +73,14 @@
     "West Seattle Junction"
   ],
   "load_notes": [
-    "Seattle-first refresh generated 11628 target permit rows.",
-    "Seattle kept 11628 rows out of 189600 examined.",
+    "Seattle-first refresh generated 26692 target permit rows.",
+    "Seattle kept 26692 rows out of 189933 examined.",
     "Bellevue is intentionally excluded from this run while Seattle classification is being corrected.",
     "Known markets after refresh: 13.",
-    "Known neighborhoods after refresh: 33.",
-    "Known units: 51183; estimated units: 54047.",
-    "Bad coordinates removed/swapped: Seattle 41.",
-    "Suspicious >500-unit rows removed from unit count: 1."
+    "Known neighborhoods after refresh: 34.",
+    "Known units: 124851; estimated units: 130688.",
+    "Bad coordinates removed/swapped: Seattle 78.",
+    "Suspicious >500-unit rows removed from unit count: 7."
   ],
   "load_errors": []
 }

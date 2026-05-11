@@ -1,16 +1,16 @@
 {
   "errors": [],
-  "seattle_rows_examined": 189600,
-  "seattle_rows_kept": 11628,
-  "seattle_rows_dropped": 177972,
+  "seattle_rows_examined": 189933,
+  "seattle_rows_kept": 26692,
+  "seattle_rows_dropped": 163241,
   "seattle_drop_reasons": {
-    "outside_years_or_missing_date": 48030,
-    "excluded_by_classifier": 129942,
-    "kept": 11628
+    "excluded_by_classifier": 130179,
+    "outside_years_or_missing_date": 33062,
+    "kept": 26692
   },
-  "seattle_unknown_market_rows": 137,
-  "seattle_bad_coordinate_rows_removed_or_swapped": 41,
-  "seattle_suspicious_unit_rows_removed": 1,
+  "seattle_unknown_market_rows": 298,
+  "seattle_bad_coordinate_rows_removed_or_swapped": 78,
+  "seattle_suspicious_unit_rows_removed": 7,
   "seattle_columns_seen": [
     "AppliedDate",
     "CompletedDate",
