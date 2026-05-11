@@ -1,4 +1,3 @@
-\
 import json
 from pathlib import Path
 from flask import Flask, jsonify, render_template, request
@@ -8,7 +7,7 @@ DATA_DIR = BASE_DIR / "data"
 SUMMARY_PATH = DATA_DIR / "summary.json"
 META_PATH = DATA_DIR / "meta.json"
 
-YEARS = [2022, 2023, 2024, 2025, 2026]
+YEARS = list(range(2016, 2027))
 VALID_CATEGORIES = [
     "New SFR / ADU",
     "Townhome / Rowhouse / Duplex",
@@ -74,6 +73,7 @@ def load_meta():
             "markets": [],
             "neighborhoods": [],
             "categories": VALID_CATEGORIES,
+            "years": YEARS,
             "load_notes": [],
             "load_errors": [],
         },
@@ -104,8 +104,11 @@ def classify_trajectory(vals):
 
 
 def opportunity_label(row):
-    recent = row["recent_permits"]
-    avg = row["avg_permits"]
+    recent_years = [str(y) for y in YEARS[-2:]]
+    recent = sum(row["years"].get(y, {}).get("Total", 0) for y in recent_years)
+    vals = [row["years"].get(str(y), {}).get("Total", 0) for y in YEARS]
+    avg = sum(vals) / len(vals) if vals else 0
+
     mf = row["multifamily_apartment"]
     attached = row["townhome_rowhouse_duplex"]
     units = row["known_units"] + row["estimated_units"]
@@ -155,10 +158,6 @@ def keep_point(row, jurisdiction, category, market, neighborhood, start_year, en
 
 
 def slim_point(p):
-    """
-    Important: do NOT send large text fields like summary to the browser.
-    The dashboard needs point metadata, not the full permit description.
-    """
     return {
         "address": p.get("address"),
         "jurisdiction": p.get("jurisdiction"),
@@ -237,7 +236,7 @@ def summarize(points):
         out = []
         for g in grouped.values():
             vals = [g["years"][str(y)]["Total"] for y in YEARS]
-            recent = g["years"]["2025"]["Total"] + g["years"]["2026"]["Total"]
+            recent = sum(g["years"][str(y)]["Total"] for y in YEARS[-2:])
             avg = round(sum(vals) / len(vals), 1) if vals else 0
             trajectory = classify_trajectory(vals)
 
@@ -277,6 +276,7 @@ def filter_summary(summary, jurisdiction, category, market, neighborhood, start_
         "neighborhood_rows": neighborhood_rows,
         "map_points": [slim_point(p) for p in points],
         "categories": summary.get("categories", VALID_CATEGORIES),
+        "years": YEARS,
         "load_notes": summary.get("load_notes", []),
         "load_errors": summary.get("load_errors", []),
     }
@@ -284,13 +284,14 @@ def filter_summary(summary, jurisdiction, category, market, neighborhood, start_
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", years=YEARS)
 
 
 @app.route("/api/meta")
 def api_meta():
     meta = load_meta()
     meta["categories"] = meta.get("categories", VALID_CATEGORIES)
+    meta["years"] = meta.get("years", YEARS)
     return jsonify(meta)
 
 

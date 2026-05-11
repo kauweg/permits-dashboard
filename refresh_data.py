@@ -1,10 +1,8 @@
-\
 from __future__ import annotations
 
 import csv
 import io
 import json
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,7 +14,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-YEARS = {2022, 2023, 2024, 2025, 2026}
+YEARS = set(range(2016, 2027))
 SEATTLE_CSV_URL = "https://data.seattle.gov/api/views/76t5-zqzr/rows.csv?accessType=DOWNLOAD"
 
 MIN_LAT, MAX_LAT = 47.00, 48.00
@@ -73,47 +71,15 @@ NEIGHBORHOOD_BOUNDS = [
 ]
 
 DEMO_HINTS = [" demol", " demolition", " demo ", "teardown", " raze ", "remove structure", "remove building", "deconstruct"]
-
-EXCLUDE_NON_SUPPLY = [
-    "repair", "repairs", "replace", "replacement", "roof", "reroof", "re-roof",
-    "tenant improvement", "seismic", "retrofit", "interior", "remodel",
-    "mechanical", "plumbing", "electrical", "solar", "deck", "retaining wall",
-    "shoring", "excavation", "site work", "change of use", "install", "installation",
-    "shed", "garage", "minor communication utility", "antenna", "equipment",
-]
-
-TOWNHOME_HINTS = [
-    "townhome", "townhomes", "townhouse", "townhouses",
-    "rowhouse", "rowhouses", "duplex", "triplex", "fourplex",
-    "two-family", "2-family", "two family", "cottage housing"
-]
-
-MULTIFAMILY_HINTS = [
-    "multifamily", "multi-family", "multi family", "apartment", "apartments",
-    "condo", "condominium", "mixed use", "mixed-use", "sedu", "sedus",
-]
-
-SFR_HINTS = [
-    "single family", "single-family", "single family residence",
-    "single-family residence", "one-family", "one family",
-    "one-family dwelling", "sfr", "detached", "single-family dwelling",
-    "single family dwelling"
-]
-
+EXCLUDE_NON_SUPPLY = ["repair", "repairs", "replace", "replacement", "roof", "reroof", "re-roof", "tenant improvement", "seismic", "retrofit", "interior", "remodel", "mechanical", "plumbing", "electrical", "solar", "deck", "retaining wall", "shoring", "excavation", "site work", "change of use", "install", "installation", "shed", "garage", "minor communication utility", "antenna", "equipment"]
+TOWNHOME_HINTS = ["townhome", "townhomes", "townhouse", "townhouses", "rowhouse", "rowhouses", "duplex", "triplex", "fourplex", "two-family", "2-family", "two family", "cottage housing"]
+MULTIFAMILY_HINTS = ["multifamily", "multi-family", "multi family", "apartment", "apartments", "condo", "condominium", "mixed use", "mixed-use", "sedu", "sedus"]
+SFR_HINTS = ["single family", "single-family", "single family residence", "single-family residence", "one-family", "one family", "one-family dwelling", "sfr", "detached", "single-family dwelling"]
 ADU_HINTS = ["adu", "aadu", "dadu", "accessory dwelling"]
-
-STRONG_NEW_HINTS = [
-    "construct new", "new construction", "new building", "new structure",
-    "establish use", "new single", "new one-family", "new townhome",
-    "new townhouse", "new rowhouse", "new apartment", "new multifamily",
-    "construct a new", "construct one family", "construct one-family",
-    "construct single family", "construct single-family",
-]
-
+STRONG_NEW_HINTS = ["construct new", "new construction", "new building", "new structure", "establish use", "new single", "new one-family", "new townhome", "new townhouse", "new rowhouse", "new apartment", "new multifamily", "construct a new", "construct one family", "construct one-family", "construct single family", "construct single-family"]
 
 def norm(v: Any) -> str:
     return " ".join(str(v or "").replace("\xa0", " ").split())
-
 
 def pick(row: dict[str, Any], keys: list[str]) -> Any:
     lower = {str(k).lower(): v for k, v in row.items()}
@@ -125,7 +91,6 @@ def pick(row: dict[str, Any], keys: list[str]) -> Any:
             return lower[lk]
     return None
 
-
 def to_int(v: Any) -> int:
     try:
         if v in (None, ""):
@@ -133,7 +98,6 @@ def to_int(v: Any) -> int:
         return int(float(str(v).replace(",", "")))
     except Exception:
         return 0
-
 
 def parse_dt(v: Any) -> datetime | None:
     s = norm(v)
@@ -149,7 +113,6 @@ def parse_dt(v: Any) -> datetime | None:
     except Exception:
         return None
 
-
 def safe_float(v: Any) -> float | None:
     try:
         if v in (None, "", "NULL"):
@@ -158,10 +121,8 @@ def safe_float(v: Any) -> float | None:
     except Exception:
         return None
 
-
 def valid_pnw(lat: float | None, lon: float | None) -> bool:
     return lat is not None and lon is not None and MIN_LAT <= lat <= MAX_LAT and MIN_LON <= lon <= MAX_LON
-
 
 def clean_coordinates(lat: float | None, lon: float | None) -> tuple[float | None, float | None, bool]:
     if valid_pnw(lat, lon):
@@ -170,35 +131,27 @@ def clean_coordinates(lat: float | None, lon: float | None) -> tuple[float | Non
         return lon, lat, True
     return None, None, True
 
-
 def assign_market_neighborhood(lat: float | None, lon: float | None, fallback: str) -> tuple[str, str]:
     fallback = norm(fallback)
-
     for hood, market, min_lat, max_lat, min_lon, max_lon in NEIGHBORHOOD_BOUNDS:
         if lat is not None and lon is not None and min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
             return market, hood
-
     for market, min_lat, max_lat, min_lon, max_lon in MARKET_BOUNDS:
         if lat is not None and lon is not None and min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
             return market, fallback if fallback and not fallback.isdigit() else market
-
     if fallback and not fallback.isdigit():
         return fallback, fallback
     return "Unknown", "Unknown"
-
 
 def has(text: str, terms: list[str]) -> bool:
     t = f" {norm(text).lower()} "
     return any(term in t for term in terms)
 
-
 def is_demo(text: str, units_added: int, units_removed: int) -> bool:
-    # A permit that says "demolish existing ... and construct new..." should be classified as the new supply, not demo.
     low = f" {norm(text).lower()} "
     if any(h in low for h in STRONG_NEW_HINTS) and units_added > 0:
         return False
     return has(text, DEMO_HINTS) or (units_removed > 0 and units_added <= 0)
-
 
 def is_non_supply(text: str) -> bool:
     low = f" {norm(text).lower()} "
@@ -206,42 +159,30 @@ def is_non_supply(text: str) -> bool:
         return False
     return any(h in low for h in EXCLUDE_NON_SUPPLY)
 
-
 def classify(row: dict[str, Any], text: str) -> str | None:
     units_added = to_int(pick(row, ["HousingUnitsAdded"]))
     units_removed = to_int(pick(row, ["HousingUnitsRemoved"]))
     units_total = to_int(pick(row, ["HousingUnits"]))
-
     dwelling_type = norm(pick(row, ["DwellingUnitType"]))
     housing_category = norm(pick(row, ["HousingCategory"]))
     permit_class = norm(pick(row, ["PermitClass", "PermitClassMapped"]))
     permit_type = norm(pick(row, ["PermitTypeDesc", "PermitTypeMapped"]))
-
     combined = " ".join([text, dwelling_type, housing_category, permit_class, permit_type]).lower()
     low = f" {combined} "
-
     if is_demo(combined, units_added, units_removed):
         return "Demo"
-
     if units_added <= 0 and is_non_supply(combined):
         return None
-
-    # Primary correction: Single Family/Duplex permit class + one-family language should not become Townhome.
     is_single_family_class = "single family/duplex" in low or "single family" in low
     is_explicit_townhome = has(combined, ["townhome", "townhomes", "townhouse", "townhouses", "rowhouse", "rowhouses", "cottage housing"])
     is_explicit_duplex_triplex = has(combined, ["duplex", "triplex", "fourplex", "two-family", "2-family", "two family"])
     is_explicit_mf = has(combined, MULTIFAMILY_HINTS)
     is_explicit_sfr = has(combined, SFR_HINTS)
     is_adu = has(combined, ADU_HINTS)
-
-    # If it is an SFR class and says single/one-family, classify as SFR/ADU unless it clearly says townhome/rowhouse/duplex.
     if is_single_family_class and is_explicit_sfr and not is_explicit_townhome and not is_explicit_duplex_triplex:
         return "New SFR / ADU"
-
     if is_adu and not is_explicit_townhome and not is_explicit_mf:
         return "New SFR / ADU"
-
-    # Structured unit field.
     if units_added > 0:
         if is_explicit_mf and not is_explicit_townhome:
             return "Multifamily / Apartment"
@@ -250,12 +191,10 @@ def classify(row: dict[str, Any], text: str) -> str | None:
         if units_added == 1:
             return "New SFR / ADU"
         if 2 <= units_added <= 8:
-            # Multi-lot SFR plats frequently show multiple added units but text says one-family.
             if is_single_family_class and is_explicit_sfr:
                 return "New SFR / ADU"
             return "Townhome / Rowhouse / Duplex"
         return "Multifamily / Apartment"
-
     if units_total > 0 and any(h in combined for h in STRONG_NEW_HINTS):
         if is_explicit_mf and not is_explicit_townhome:
             return "Multifamily / Apartment"
@@ -266,73 +205,56 @@ def classify(row: dict[str, Any], text: str) -> str | None:
         if 2 <= units_total <= 8:
             return "Townhome / Rowhouse / Duplex"
         return "Multifamily / Apartment"
-
     if not any(h in combined for h in STRONG_NEW_HINTS):
         return None
-
     if is_explicit_mf and not is_explicit_townhome:
         return "Multifamily / Apartment"
     if is_explicit_townhome or is_explicit_duplex_triplex:
         return "Townhome / Rowhouse / Duplex"
     if is_explicit_sfr or is_adu:
         return "New SFR / ADU"
-
     return None
-
 
 def unit_counts(row: dict[str, Any], category: str) -> tuple[int, int, bool]:
     added = to_int(pick(row, ["HousingUnitsAdded"]))
     total = to_int(pick(row, ["HousingUnits"]))
     known = added or total
-
     if category == "Demo":
         return 0, 0, False
-
     if known > 500:
         return 0, 0, True
-
     if known > 0:
         return known, known, False
-
     if category == "New SFR / ADU":
         return 0, 1, False
     if category == "Townhome / Rowhouse / Duplex":
         return 0, 3, False
-
     return 0, 0, False
 
-
 def download_csv_rows(url: str) -> list[dict[str, Any]]:
-    r = requests.get(url, timeout=240)
+    r = requests.get(url, timeout=300)
     r.raise_for_status()
     return list(csv.DictReader(io.StringIO(r.text)))
-
 
 def build_row(row: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     description = norm(pick(row, ["Description"]))
     permit_class = norm(pick(row, ["PermitClass", "PermitClassMapped"]))
     permit_type = norm(pick(row, ["PermitTypeDesc", "PermitTypeMapped"]))
     text = " ".join([permit_class, permit_type, description]).strip()
-
     category = classify(row, text)
     if not category:
         return None, "excluded_by_classifier"
-
     issue = parse_dt(pick(row, ["IssuedDate"]))
     intake = parse_dt(pick(row, ["AppliedDate"]))
     dt = issue or intake
     if not dt or dt.year not in YEARS:
         return None, "outside_years_or_missing_date"
-
     lat = safe_float(pick(row, ["Latitude"]))
     lon = safe_float(pick(row, ["Longitude"]))
     lat, lon, bad_coord = clean_coordinates(lat, lon)
-
     fallback = norm(pick(row, ["OriginalZip"]))
     market, hood = assign_market_neighborhood(lat, lon, fallback)
-
     known_units, estimated_units, suspicious_units = unit_counts(row, category)
-
     return {
         "jurisdiction": "Seattle",
         "market": market,
@@ -352,20 +274,17 @@ def build_row(row: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
         "summary": text,
     }, "kept"
 
-
 def fetch_rows(debug: dict[str, Any]) -> list[dict[str, Any]]:
     raw = download_csv_rows(SEATTLE_CSV_URL)
     out = []
     reasons = {}
     columns = set()
-
     for row in raw:
         columns.update(row.keys())
         item, reason = build_row(row)
         reasons[reason] = reasons.get(reason, 0) + 1
         if item:
             out.append(item)
-
     debug["seattle_rows_examined"] = len(raw)
     debug["seattle_rows_kept"] = len(out)
     debug["seattle_rows_dropped"] = len(raw) - len(out)
@@ -375,7 +294,6 @@ def fetch_rows(debug: dict[str, Any]) -> list[dict[str, Any]]:
     debug["seattle_suspicious_unit_rows_removed"] = sum(1 for r in out if r.get("suspicious_units_removed"))
     debug["seattle_columns_seen"] = sorted(columns)
     return out
-
 
 def empty_year():
     return {
@@ -387,7 +305,6 @@ def empty_year():
         "Known Units": 0,
         "Estimated Units": 0,
     }
-
 
 def trajectory(vals):
     if not vals or sum(vals) == 0:
@@ -405,7 +322,6 @@ def trajectory(vals):
         return "Underserved"
     return "Stable"
 
-
 def opportunity(row):
     recent = row["years"]["2025"]["Total"] + row["years"]["2026"]["Total"]
     vals = [row["years"][str(y)]["Total"] for y in sorted(YEARS)]
@@ -413,7 +329,6 @@ def opportunity(row):
     mf = row["totals"]["Multifamily / Apartment"]
     attached = row["totals"]["Townhome / Rowhouse / Duplex"]
     units = row["totals"]["Known Units"] + row["totals"]["Estimated Units"]
-
     saturation_signals = 0
     if recent >= 25:
         saturation_signals += 1
@@ -423,7 +338,6 @@ def opportunity(row):
         saturation_signals += 1
     if recent > 0 and ((mf + attached) / recent) >= 0.65:
         saturation_signals += 1
-
     opportunity_signals = 0
     if recent <= 6:
         opportunity_signals += 1
@@ -433,7 +347,6 @@ def opportunity(row):
         opportunity_signals += 1
     if recent == 0 or ((mf + attached) / max(1, recent)) < 0.50:
         opportunity_signals += 1
-
     if saturation_signals >= 2:
         return "Saturated / caution"
     if saturation_signals == 1 and row.get("trajectory") == "Accelerating":
@@ -443,7 +356,6 @@ def opportunity(row):
     if units > 0 and recent <= 8:
         return "Selective opportunity"
     return "Monitor"
-
 
 def rollup(rows, field):
     grouped = {}
@@ -457,13 +369,11 @@ def rollup(rows, field):
                 "years": {str(y): empty_year() for y in sorted(YEARS)},
                 "totals": empty_year(),
             }
-
         g = grouped[key]
         y = str(r["year"])
         cat = r["category"]
         known = int(r.get("units") or 0)
         est = int(r.get("estimated_units") or 0)
-
         g["jurisdictions"].add(r["jurisdiction"])
         g["years"][y][cat] += 1
         g["years"][y]["Total"] += 1
@@ -473,7 +383,6 @@ def rollup(rows, field):
         g["totals"]["Total"] += 1
         g["totals"]["Known Units"] += known
         g["totals"]["Estimated Units"] += est
-
     out = []
     for g in grouped.values():
         vals = [g["years"][str(y)]["Total"] for y in sorted(YEARS)]
@@ -481,9 +390,7 @@ def rollup(rows, field):
         g["trajectory"] = trajectory(vals)
         g["opportunity"] = opportunity(g)
         out.append(g)
-
     return sorted(out, key=lambda x: (-x["totals"]["Total"], x["name"]))
-
 
 def build_outputs(rows, debug):
     cards = {
@@ -499,7 +406,6 @@ def build_outputs(rows, debug):
         "known_units": sum(int(r.get("units") or 0) for r in rows),
         "estimated_units": sum(int(r.get("estimated_units") or 0) for r in rows),
     }
-
     annual = {y: {"year": y, **empty_year()} for y in sorted(YEARS)}
     for r in rows:
         y = r["year"]
@@ -508,7 +414,6 @@ def build_outputs(rows, debug):
         annual[y]["Total"] += 1
         annual[y]["Known Units"] += int(r.get("units") or 0)
         annual[y]["Estimated Units"] += int(r.get("estimated_units") or 0)
-
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "categories": CATEGORIES,
@@ -529,18 +434,16 @@ def build_outputs(rows, debug):
         ],
         "load_errors": debug.get("errors", []),
     }
-
     meta = {
         "generated_at": summary["generated_at"],
         "categories": CATEGORIES,
+        "years": sorted(YEARS),
         "markets": sorted({r["market"] for r in rows if r.get("market")}),
         "neighborhoods": sorted({r["raw_neighborhood"] for r in rows if r.get("raw_neighborhood")}),
         "load_notes": summary["load_notes"],
         "load_errors": summary["load_errors"],
     }
-
     return summary, meta
-
 
 def main():
     debug = {"errors": []}
@@ -550,17 +453,13 @@ def main():
     except Exception as e:
         rows = []
         debug["errors"].append(f"Seattle refresh failed: {e}")
-
     summary, meta = build_outputs(rows, debug)
-
     (DATA_DIR / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     (DATA_DIR / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     (DATA_DIR / "refresh_debug.json").write_text(json.dumps(debug, indent=2), encoding="utf-8")
-
     print("Wrote", DATA_DIR / "summary.json")
     print("Wrote", DATA_DIR / "meta.json")
     print("Wrote", DATA_DIR / "refresh_debug.json")
-
 
 if __name__ == "__main__":
     main()
