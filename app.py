@@ -313,5 +313,10 @@ def api_summary():
     return jsonify(filter_summary(summary, jurisdiction, category, market, neighborhood, start_year, end_year))
 
 
+@app.route("/api/absorption")
+def api_absorption():
+    return jsonify(load_json(DATA_DIR / "absorption.json", {"areas": [], "bounds": {}, "categories": []}))
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
