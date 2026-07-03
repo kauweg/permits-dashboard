@@ -574,9 +574,16 @@ const STATUS_LABELS = {
 function absorptionRows() {
   const d = absorptionState.data;
   if (!d) return [];
-  // Neighborhood-level rows only (market rollups excluded from map/table)
-  return (d.areas || []).filter(
-    (a) => a.category === absorptionState.category && a.neighborhood !== a.market
+  const inCat = (d.areas || []).filter((a) => a.category === absorptionState.category);
+  // Markets that have distinct child neighborhoods in this category
+  const marketsWithChildren = new Set(
+    inCat.filter((a) => a.neighborhood !== a.market).map((a) => a.market)
+  );
+  // Keep neighborhood rows, plus market rows for single-neighborhood markets
+  // (e.g. Ballard, where market === neighborhood) to avoid double-counting
+  // rollups while not dropping standalone areas.
+  return inCat.filter(
+    (a) => a.neighborhood !== a.market || !marketsWithChildren.has(a.market)
   );
 }
 
