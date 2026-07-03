@@ -551,3 +551,157 @@ window.addEventListener("DOMContentLoaded", async () => {
     showFatal(e.message || String(e));
   }
 });
+
+/* ============================================================
+   Absorption early-warning module (self-contained)
+   ============================================================ */
+const absorptionState = { data: null, map: null, layer: null, category: "Townhome / Rowhouse / Duplex" };
+
+const ABSORPTION_COLORS = {
+  green: "#027a48",
+  yellow: "#b54708",
+  red: "#b42318",
+  "insufficient data": "#94a3b8",
+};
+
+const STATUS_LABELS = {
+  green: "Healthy",
+  yellow: "Slowing",
+  red: "Warning",
+  "insufficient data": "Thin data",
+};
+
+function absorptionRows() {
+  const d = absorptionState.data;
+  if (!d) return [];
+  // Neighborhood-level rows only (market rollups excluded from map/table)
+  return (d.areas || []).filter(
+    (a) => a.category === absorptionState.category && a.neighborhood !== a.market
+  );
+}
+
+function statusRank(s) {
+  return { red: 0, yellow: 1, green: 2, "insufficient data": 3 }[s] ?? 4;
+}
+
+function renderAbsorptionToggle() {
+  const wrap = byId("absorptionToggle");
+  if (!wrap) return;
+  const cats = absorptionState.data?.categories || [];
+  wrap.innerHTML = cats
+    .map(
+      (c) =>
+        `<button class="abs-toggle-btn${c === absorptionState.category ? " active" : ""}" data-cat="${esc(c)}">${esc(
+          c === "Townhome / Rowhouse / Duplex" ? "Townhome / Duplex" : c
+        )}</button>`
+    )
+    .join("");
+  wrap.querySelectorAll("button").forEach((b) =>
+    b.addEventListener("click", () => {
+      absorptionState.category = b.dataset.cat;
+      renderAbsorptionToggle();
+      renderAbsorptionMap();
+      renderAbsorptionTable();
+    })
+  );
+}
+
+function absorptionPopup(a) {
+  const days = a.median_days_to_sale;
+  const trend = a.trend_days;
+  return `
+    <div class="map-pop">
+      <div><strong>${esc(a.neighborhood)}</strong> — ${esc(STATUS_LABELS[a.status] || a.status)}</div>
+      <div><strong>Median days to sale:</strong> ${days == null ? "–" : fmt(days)}</div>
+      <div><strong>Trend vs prior yr:</strong> ${trend == null ? "–" : (trend > 0 ? "+" : "") + fmt(trend) + " days"}</div>
+      <div><strong>Sold last 12mo:</strong> ${fmt(a.sold_last_12mo)}${a.presold ? ` (${fmt(a.presold)} presold)` : ""}</div>
+      <div><strong>Pipeline units:</strong> ${fmt(a.pipeline_units)}</div>
+      <div><strong>Standing unsold:</strong> ${fmt(a.standing_unsold_24mo)}</div>
+      <div><strong>Months of supply:</strong> ${a.months_of_supply == null ? "–" : a.months_of_supply}</div>
+    </div>`;
+}
+
+function renderAbsorptionMap() {
+  const el = byId("absorptionMap");
+  if (!el || !absorptionState.data) return;
+  if (!absorptionState.map) {
+    absorptionState.map = L.map("absorptionMap", { preferCanvas: true }).setView([47.6062, -122.3321], 11);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(absorptionState.map);
+  }
+  if (absorptionState.layer) absorptionState.layer.remove();
+  absorptionState.layer = L.layerGroup().addTo(absorptionState.map);
+
+  const bounds = absorptionState.data.bounds || {};
+  const drawn = [];
+  absorptionRows().forEach((a) => {
+    const b = bounds[a.neighborhood];
+    if (!b) return;
+    const rect = L.rectangle(
+      [[b[0], b[1]], [b[2], b[3]]],
+      {
+        color: ABSORPTION_COLORS[a.status] || "#94a3b8",
+        weight: 1.5,
+        fillColor: ABSORPTION_COLORS[a.status] || "#94a3b8",
+        fillOpacity: a.status === "insufficient data" ? 0.12 : 0.28,
+      }
+    );
+    rect.bindPopup(absorptionPopup(a));
+    rect.addTo(absorptionState.layer);
+    drawn.push([b[0], b[1]], [b[2], b[3]]);
+  });
+  if (drawn.length) absorptionState.map.fitBounds(drawn, { padding: [12, 12] });
+}
+
+function renderAbsorptionTable() {
+  const tbody = document.querySelector("#absorptionTable tbody");
+  if (!tbody) return;
+  const rows = absorptionRows().slice().sort((x, y) => {
+    const r = statusRank(x.status) - statusRank(y.status);
+    if (r) return r;
+    return (y.median_days_to_sale ?? -1) - (x.median_days_to_sale ?? -1);
+  });
+  tbody.innerHTML = rows
+    .map((a) => {
+      const trend = a.trend_days;
+      const trendTxt = trend == null ? "–" : `${trend > 0 ? "+" : ""}${fmt(trend)}d`;
+      return `
+      <tr>
+        <td>${esc(a.neighborhood)}</td>
+        <td>${a.median_days_to_sale == null ? "–" : fmt(a.median_days_to_sale)}</td>
+        <td class="${trend > 0 ? "trend-bad" : trend < 0 ? "trend-good" : ""}">${trendTxt}</td>
+        <td>${fmt(a.sold_last_12mo)}</td>
+        <td>${fmt(a.pipeline_units)}</td>
+        <td>${fmt(a.standing_unsold_24mo)}</td>
+        <td>${a.months_of_supply == null ? "–" : a.months_of_supply}</td>
+        <td><span class="status-pill status-${esc(a.status).replace(/\s+/g, "-")}">${esc(STATUS_LABELS[a.status] || a.status)}</span></td>
+      </tr>`;
+    })
+    .join("");
+}
+
+async function loadAbsorption() {
+  try {
+    const res = await fetch("/api/absorption");
+    if (!res.ok) throw new Error(`absorption HTTP ${res.status}`);
+    absorptionState.data = await res.json();
+    if (!(absorptionState.data.categories || []).includes(absorptionState.category)) {
+      absorptionState.category = (absorptionState.data.categories || [])[0] || absorptionState.category;
+    }
+    const meta = byId("absorptionMeta");
+    if (meta && absorptionState.data.generated_at) {
+      meta.textContent = `Days from permit completion to recorded sale • refreshed ${absorptionState.data.generated_at.slice(0, 10)}`;
+    }
+    renderAbsorptionToggle();
+    renderAbsorptionMap();
+    renderAbsorptionTable();
+  } catch (e) {
+    console.error("absorption load failed", e);
+    const sec = byId("absorptionSection");
+    if (sec) sec.style.display = "none";
+  }
+}
+
+window.addEventListener("DOMContentLoaded", loadAbsorption);
