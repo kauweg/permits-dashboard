@@ -159,6 +159,46 @@
         </div>
       </div>
     </section>
+    <section class="grid top-grid" id="absorptionSection">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Sales absorption early warning</h2>
+          <div class="muted" id="absorptionMeta">Days from permit completion to recorded sale</div>
+        </div>
+        <div class="absorption-toggle" id="absorptionToggle"></div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="swatch" style="background:#027a48"></span>Healthy</span>
+          <span class="legend-item"><span class="swatch" style="background:#b54708"></span>Slowing</span>
+          <span class="legend-item"><span class="swatch" style="background:#b42318"></span>Warning</span>
+          <span class="legend-item"><span class="swatch" style="background:#94a3b8"></span>Thin data</span>
+        </div>
+        <div id="absorptionMap" class="small-map"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Neighborhood absorption detail</h2>
+          <div class="muted">Sorted worst-first • closing-date basis (runs ~30-45 days longer than MLS DOM)</div>
+        </div>
+        <div class="table-wrap tall">
+          <table id="absorptionTable">
+            <thead>
+              <tr>
+                <th>Neighborhood</th>
+                <th>Median days</th>
+                <th>Trend</th>
+                <th>Sold 12mo</th>
+                <th>Pipeline</th>
+                <th>Unsold</th>
+                <th>Mo. supply</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
