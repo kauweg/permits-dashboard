@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-02T21:29:46.948714",
+  "generated_at": "2026-07-02T22:12:02.573007",
   "params": {
     "min_sale_price": 200000,
     "presale_grace_days": 60,
@@ -1109,6 +1109,212 @@
       "status": "red"
     }
   ],
+  "bounds": {
+    "Alki / Admiral": [
+      47.57,
+      -122.42,
+      47.6,
+      -122.37
+    ],
+    "West Seattle Junction": [
+      47.55,
+      -122.4,
+      47.58,
+      -122.36
+    ],
+    "Delridge": [
+      47.52,
+      -122.37,
+      47.58,
+      -122.33
+    ],
+    "Fauntleroy / Arbor Heights": [
+      47.49,
+      -122.42,
+      47.54,
+      -122.36
+    ],
+    "Commercial Core": [
+      47.603,
+      -122.34,
+      47.615,
+      -122.325
+    ],
+    "Pioneer Square / ID": [
+      47.595,
+      -122.34,
+      47.607,
+      -122.315
+    ],
+    "First Hill": [
+      47.605,
+      -122.33,
+      47.615,
+      -122.315
+    ],
+    "Capitol Hill": [
+      47.615,
+      -122.33,
+      47.642,
+      -122.295
+    ],
+    "South Lake Union": [
+      47.615,
+      -122.35,
+      47.63,
+      -122.325
+    ],
+    "Eastlake": [
+      47.63,
+      -122.335,
+      47.655,
+      -122.315
+    ],
+    "Queen Anne": [
+      47.625,
+      -122.37,
+      47.655,
+      -122.34
+    ],
+    "Magnolia": [
+      47.625,
+      -122.43,
+      47.675,
+      -122.37
+    ],
+    "Ballard": [
+      47.66,
+      -122.41,
+      47.69,
+      -122.36
+    ],
+    "Fremont": [
+      47.645,
+      -122.36,
+      47.66,
+      -122.34
+    ],
+    "Wallingford": [
+      47.655,
+      -122.345,
+      47.675,
+      -122.32
+    ],
+    "U District / Ravenna": [
+      47.655,
+      -122.325,
+      47.685,
+      -122.295
+    ],
+    "Wedgwood / View Ridge": [
+      47.675,
+      -122.305,
+      47.71,
+      -122.25
+    ],
+    "Greenwood / Northgate": [
+      47.68,
+      -122.37,
+      47.735,
+      -122.3
+    ],
+    "Central District": [
+      47.598,
+      -122.315,
+      47.625,
+      -122.29
+    ],
+    "Madison / Leschi": [
+      47.595,
+      -122.3,
+      47.635,
+      -122.275
+    ],
+    "Beacon Hill": [
+      47.535,
+      -122.325,
+      47.595,
+      -122.295
+    ],
+    "Columbia City / Rainier": [
+      47.54,
+      -122.305,
+      47.575,
+      -122.275
+    ],
+    "Rainier Beach": [
+      47.49,
+      -122.29,
+      47.54,
+      -122.24
+    ],
+    "West Seattle": [
+      47.49,
+      -122.43,
+      47.61,
+      -122.34
+    ],
+    "Downtown Seattle": [
+      47.595,
+      -122.36,
+      47.625,
+      -122.315
+    ],
+    "First Hill / Capitol Hill": [
+      47.608,
+      -122.335,
+      47.642,
+      -122.29
+    ],
+    "South Lake Union / Eastlake": [
+      47.615,
+      -122.35,
+      47.655,
+      -122.31
+    ],
+    "Queen Anne / Magnolia": [
+      47.615,
+      -122.43,
+      47.675,
+      -122.34
+    ],
+    "Fremont / Wallingford": [
+      47.645,
+      -122.365,
+      47.675,
+      -122.32
+    ],
+    "University District / Northeast": [
+      47.645,
+      -122.33,
+      47.73,
+      -122.25
+    ],
+    "North Seattle": [
+      47.675,
+      -122.38,
+      47.735,
+      -122.29
+    ],
+    "Central Seattle": [
+      47.59,
+      -122.32,
+      47.63,
+      -122.285
+    ],
+    "South Seattle": [
+      47.49,
+      -122.33,
+      47.575,
+      -122.24
+    ],
+    "Greater Duwamish": [
+      47.5,
+      -122.36,
+      47.6,
+      -122.3
+    ]
+  },
   "notes": [
     "days_to_sale = King County recorded sale date minus SDCI permit CompletedDate.",
     "Presales (recorded up to grace period before completion) count as 0 days.",

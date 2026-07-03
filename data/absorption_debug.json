@@ -4,8 +4,8 @@
   "permits_examined": 191415,
   "permits_kept": 26611,
   "permit_drop_reasons": {
-    "not_for_sale_category": 156055,
-    "missing_issue_date": 8749,
+    "not_for_sale_category": 156056,
+    "missing_issue_date": 8748,
     "kept": 26611,
     "category_refined_to_sfr": 7947
   },
