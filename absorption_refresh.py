@@ -118,6 +118,8 @@ def normalize_address(raw: str) -> tuple[int | None, str]:
     fuzzy matching can slide along the same street."""
     s = norm(raw).upper()
     s = re.sub(r"[^A-Z0-9 ]", " ", s)
+    # King County's ResBldg Address field appends the zip: "6510 14TH AVE NW 98107"
+    s = re.sub(r"\s+9[85]\d{3}$", "", s)
     tokens = [t for t in s.split() if t]
     if not tokens:
         return None, ""
@@ -232,6 +234,16 @@ def load_permit_rows(debug: dict[str, Any], local_csv: str | None) -> list[dict[
 
 
 # --------------------------------------------------------- assessor loading
+# Seattle proper (98146/98168/98177/98178/98133 straddle the city line and are
+# kept; the YrBuilt freshness check guards against cross-city collisions).
+SEATTLE_ZIPS = {
+    "98101", "98102", "98103", "98104", "98105", "98106", "98107", "98108",
+    "98109", "98112", "98115", "98116", "98117", "98118", "98119", "98121",
+    "98122", "98125", "98126", "98133", "98134", "98136", "98144", "98146",
+    "98154", "98164", "98168", "98174", "98177", "98178", "98195", "98199",
+}
+
+
 def load_resbldg(debug: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     """Return street_key -> list of buildings (Seattle zips only)."""
     path = EXTRACT_DIR / "EXTR_ResBldg.csv"
@@ -241,14 +253,17 @@ def load_resbldg(debug: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
         for row in csv.DictReader(f):
             examined += 1
             zipcode = norm(pick(row, ["ZipCode"]))[:5]
-            if not zipcode.startswith("981"):
+            if zipcode not in SEATTLE_ZIPS:
                 continue
-            addr = norm(pick(row, ["Address"]))
-            if not addr:
+            # Component columns are cleaner than the Address field (which has
+            # the zip glued on). Compose when StreetName exists, else fall back.
+            if norm(pick(row, ["StreetName"])):
                 parts = [norm(pick(row, [k])) for k in (
-                    "BuildingNumber", "Fraction", "DirectionPrefix",
+                    "BuildingNumber", "DirectionPrefix",
                     "StreetName", "StreetType", "DirectionSuffix")]
                 addr = " ".join(p for p in parts if p)
+            else:
+                addr = norm(pick(row, ["Address"]))
             house, street = normalize_address(addr)
             if house is None or not street:
                 continue
